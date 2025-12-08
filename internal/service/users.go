@@ -8,8 +8,23 @@ import (
 	"github.com/itsDrac/e-auc/pkg/utils"
 )
 
+type UserServicer interface {
+	CreateUser(ctx context.Context, email, password, name string) (string, error)
+}
+
+type Services struct {
+	UserService UserServicer
+	ProductService interface{}
+}
+
+func NewServices(users *repository.Userrepo) *Services {
+	return &Services{
+		UserService: NewUserService(users),
+	}
+}
+
 type UserService struct {
-	Users *repository.Userrepo
+	Users *repository.Userrepo // We'll be using code genrated by sqlc here
 }
 
 func NewUserService(users *repository.Userrepo) *UserService {

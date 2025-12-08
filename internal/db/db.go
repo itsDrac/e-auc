@@ -2,21 +2,22 @@ package db
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"database/sql"
 
-	"github.com/itsDrac/e-auc/pkg/logger"
+	// "github.com/itsDrac/e-auc/pkg/logger"
 	_ "github.com/lib/pq"
 )
 
 type DB struct {
-	log    *logger.Logger
+	// log    *logger.Logger
 	Db     *sql.DB
 	closed bool
 }
 
-func NewDB(ctx context.Context, dsn string, log *logger.Logger) (*DB, error) {
+func NewDB(ctx context.Context, dsn string) (*DB, error) {
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, err
@@ -35,10 +36,10 @@ func NewDB(ctx context.Context, dsn string, log *logger.Logger) (*DB, error) {
 		return nil, err
 	}
 
-	log.Info("[DB] connection established...")
+	slog.Info("[DB] connection established...")
 
 	return &DB{
-		log:    log,
+		// log:    log,
 		Db:     db,
 		closed: false,
 	}, nil

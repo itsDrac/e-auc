@@ -1,17 +1,28 @@
 package main
 
 import (
-	"fmt"
-	"log"
+	"log/slog"
+	"os"
 
 	"github.com/itsDrac/e-auc/cmd/server"
 )
 
 func main() {
+	// Configure structured logging with slog
+	logOptions := &slog.HandlerOptions{
+		AddSource: true,
+		Level: slog.LevelInfo,
+	}
+	handler := slog.NewJSONHandler(os.Stdout, logOptions)
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+
 	// Service initialization
-	fmt.Println("Initializing e-auction service...")
+	slog.Info("Initializing e-auction service...")
+	
 	server := server.New()
 	if err := server.Run(); err != nil {
-		log.Fatal("server failed")
+		slog.Error("server failed to run", "error", err)
+		os.Exit(1)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 )
 
 func (d *DB) Exec(ctx context.Context, query string, args ...any) (sql.Result, error) {
@@ -14,7 +15,7 @@ func (d *DB) Exec(ctx context.Context, query string, args ...any) (sql.Result, e
 func (d *DB) Query(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	ctx = addTimeoutContext(ctx)
 	if d.Db == nil {
-		d.log.Warn("sql.DB is nil")
+		slog.Warn("sql.DB is nil")
 		return nil, errors.New("[DB] underlying sql.DB is nil")
 	}
 
@@ -24,7 +25,7 @@ func (d *DB) Query(ctx context.Context, query string, args ...any) (*sql.Rows, e
 func (d *DB) QueryRow(ctx context.Context, query string, args ...any) *sql.Row {
 	ctx = addTimeoutContext(ctx)
 	if d.Db == nil {
-		d.log.Warn("sql.DB is nil")
+		slog.Warn("sql.DB is nil")
 		return &sql.Row{}
 	}
 
@@ -35,7 +36,7 @@ func (d *DB) RunTx(ctx context.Context, fn func(ctx context.Context, tx *sql.Tx)
 	ctx = addTimeoutContext(ctx)
 
 	if d.Db == nil {
-		d.log.Warn("sql.DB is nil")
+		slog.Warn("sql.DB is nil")
 		return errors.New("[DB] underlying sql.DB is nil")
 	}
 
