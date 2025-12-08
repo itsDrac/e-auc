@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/itsDrac/e-auc/internal/server"
+	"github.com/itsDrac/e-auc/cmd/server"
 )
 
 func main() {

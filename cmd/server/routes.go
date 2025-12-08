@@ -6,14 +6,25 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
-func (s *Server) UserRoutes(mux *chi.Mux) {
-	mux.HandleFunc("POST /api/v1/users", s.RegisterUser)
-}
+func (s *Server) routes() *chi.Mux {
+	mux := chi.NewMux()
 
-func (s *Server) CommonRoutes(mux *chi.Mux) {
-	mux.HandleFunc("GET /api/v1/health", healthCheck)
+	// global middlewares
+	mux.Use(middleware.Logger)
+	mux.Use(middleware.Recoverer)
+
+	mux.Route("/api/v1", func(r chi.Router) {
+		r.Get("/health", healthCheck)
+
+		r.Route("/users", func(ur chi.Router) {
+			ur.Post("/", s.RegisterUser)
+		})
+	})
+
+	return mux
 }
 
 func healthCheck(w http.ResponseWriter, r *http.Request) {

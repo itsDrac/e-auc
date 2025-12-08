@@ -27,8 +27,8 @@ type Server struct {
 }
 
 func New() *Server {
-	mux := chi.NewMux()
 	log := logger.NewLogger()
+
 	host := utils.GetEnv("SERVER_HOST", "0.0.0.0")
 	port := utils.GetEnv("SERVER_PORT", "8080")
 	dbDsn := utils.GetEnv("DB_DSN", "")
@@ -43,28 +43,27 @@ func New() *Server {
 	}
 	userRepo := repository.NewUserrepo(db)
 	userService := service.NewUserService(userRepo)
+
 	serv := &Server{
-		Logger: log,
-		HTTPServer: &http.Server{
-			Addr:         serverAddr,
-			Handler:      mux,
-			ReadTimeout:  30 * time.Second,
-			WriteTimeout: 30 * time.Second,
-		},
+		Logger:      log,
 		UserService: userService,
 		Db:          db,
 	}
 
-	mux.Use(middleware.Logger)
-	mux.Use(middleware.Recoverer)
-
-	serv.CommonRoutes(mux)
-	serv.UserRoutes(mux)
+	// builds router
+	mux := serv.routes()
+	serv.HTTPServer = &http.Server{
+		Addr:         serverAddr,
+		Handler:      mux,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+	}
 	return serv
 }
 
 func (s *Server) Run() error {
 	s.Logger.Infof("[SERVER] running at -> " + s.HTTPServer.Addr)
+
 	// Create context that listens for the interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
