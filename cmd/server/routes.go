@@ -28,6 +28,7 @@ func (s *Server) routes() *chi.Mux {
 }
 
 func healthCheck(w http.ResponseWriter, r *http.Request) {
+	
 	resp := map[string]any{
 		"message": "ok",
 		"time":    time.Now().Format(time.RFC3339),

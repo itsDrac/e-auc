@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/itsDrac/e-auc/internal/repository"
+	"github.com/google/uuid"
+	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/pkg/utils"
 )
 
@@ -17,28 +18,28 @@ type Services struct {
 	ProductService interface{}
 }
 
-func NewServices(users *repository.Userrepo) *Services {
+func NewServices(db db.Querier) *Services {
 	return &Services{
-		UserService: NewUserService(users),
+		UserService: NewUserService(db),
 	}
 }
 
 type UserService struct {
-	Users *repository.Userrepo // We'll be using code genrated by sqlc here
+	db db.Querier // We'll be using code genrated by sqlc here
 }
 
-func NewUserService(users *repository.Userrepo) *UserService {
+func NewUserService(db db.Querier) *UserService {
 	return &UserService{
-		Users: users,
+		db: db,
 	}
 }
 
 func (us *UserService) CreateUser(ctx context.Context, email, password, name string) (string, error) {
-	exists, err := us.Users.GetUserByEmail(ctx, email)
+	exists, err := us.db.GetUserByEmail(ctx, email)
 	if err != nil {
 		return "", err
 	}
-	if exists != nil {
+	if exists.ID != uuid.Nil {
 		return "", errors.New("email already exists")
 	}
 
@@ -46,12 +47,16 @@ func (us *UserService) CreateUser(ctx context.Context, email, password, name str
 	if err != nil {
 		return "", err
 	}
-
-	userID, err := us.Users.CreateUser(ctx, email, pwHash, name)
+	userCreateParams := db.CreateUserParams{
+		Name:     name,
+		Email:    email,
+		Password: pwHash,
+	}
+	user, err := us.db.CreateUser(ctx, userCreateParams)
 	if err != nil {
 		return "", err
 	}
 
-	return userID, nil
+	return user.ID.String(), nil
 
 }

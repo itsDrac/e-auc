@@ -10,20 +10,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/itsDrac/e-auc/internal/db"
-	"github.com/itsDrac/e-auc/internal/repository"
+	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/internal/service"
 
 	// "github.com/itsDrac/e-auc/pkg/logger"
 	"github.com/itsDrac/e-auc/pkg/utils"
 	_ "github.com/joho/godotenv/autoload"
+	"github.com/jackc/pgx/v5"
 )
 
 type Server struct {
 	HTTPServer  *http.Server
 	Services    *service.Services
-
-	Db          *db.DB
+	conn 	  *pgx.Conn
 }
 
 func New() *Server {
@@ -32,22 +31,29 @@ func New() *Server {
 	host := utils.GetEnv("SERVER_HOST", "0.0.0.0")
 	port := utils.GetEnv("SERVER_PORT", "8080")
 	dbDsn := utils.GetEnv("DB_DSN", "")
-
+	
 	serverAddr := fmt.Sprintf("%s:%s", host, port)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	db, err := db.NewDB(ctx, dbDsn)
+	conn, err := pgx.Connect(ctx, dbDsn)
 	if err != nil {
 		slog.Error("[DB] connection failed -> ", "error", err.Error())
 		panic(err)
 	}
-	userRepo := repository.NewUserrepo(db)
-	services := service.NewServices(userRepo)
+	
+	
+	querier := db.New(conn)
+	if err != nil {
+		slog.Error("[DB] connection failed -> ", "error", err.Error())
+		panic(err)
+	}
+	// userRepo := repository.NewUserrepo(querier)
+	services := service.NewServices(querier)
 
 	serv := &Server{
 		Services:    services,
-		Db:          db,
+		conn:          conn,
 	}
 
 	// builds router
@@ -83,7 +89,7 @@ func (s *Server) Run() error {
 	shutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := s.Db.Close(shutCtx); err != nil {
+	if err := s.conn.Close(shutCtx); err != nil {
 		slog.Error("[DB] failed to close -> ", "error", err.Error())
 		return err
 	}
