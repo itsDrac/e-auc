@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"time"
+	"log/slog"
 
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -18,13 +19,13 @@ func (s *Server) LoggerMiddleware() func(next http.Handler) http.Handler {
 			method := r.Method
 			path := r.URL.Path
 			status := ww.Status()
-			s.Logger.Infof(
-				"%3d | %v | %-7s \"%s\"",
-				status,
-				latency,
-				method,
-				path,
+			slog.Info("Http Request",
+				"status", status,
+				"latency", latency,
+				"method", method,
+				"path", path,
 			)
+			// s.Logger.Infof("%s %s %d %s", method, path, status, latency) --- IGNORE ---
 		})
 	}
 }

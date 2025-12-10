@@ -4,50 +4,56 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/itsDrac/e-auc/internal/db"
-	"github.com/itsDrac/e-auc/internal/repository"
+	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/internal/service"
-	"github.com/itsDrac/e-auc/pkg/logger"
+
+	// "github.com/itsDrac/e-auc/pkg/logger"
 	"github.com/itsDrac/e-auc/pkg/utils"
 	_ "github.com/joho/godotenv/autoload"
+	"github.com/jackc/pgx/v5"
 )
 
 type Server struct {
 	HTTPServer  *http.Server
-	UserService *service.UserService
-	Logger      *logger.Logger
-	Db          *db.DB
+	Services    *service.Services
+	conn 	  *pgx.Conn
 }
 
 func New() *Server {
-	log := logger.NewLogger()
+	// log := logger.NewLogger()
 
 	host := utils.GetEnv("SERVER_HOST", "0.0.0.0")
 	port := utils.GetEnv("SERVER_PORT", "8080")
 	dbDsn := utils.GetEnv("DB_DSN", "")
-
+	
 	serverAddr := fmt.Sprintf("%s:%s", host, port)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	db, err := db.NewDB(ctx, dbDsn, log)
+	conn, err := pgx.Connect(ctx, dbDsn)
 	if err != nil {
-		log.Fatal("[DB] connection failed -> " + err.Error())
+		slog.Error("[DB] connection failed -> ", "error", err.Error())
+		panic(err)
 	}
-	userRepo := repository.NewUserrepo(db)
-	userService := service.NewUserService(userRepo)
+	
+	
+	querier := db.New(conn)
+	if err != nil {
+		slog.Error("[DB] connection failed -> ", "error", err.Error())
+		panic(err)
+	}
+	// userRepo := repository.NewUserrepo(querier)
+	services := service.NewServices(querier)
 
 	serv := &Server{
-		Logger:      log,
-		UserService: userService,
-		Db:          db,
+		Services:    services,
+		conn:          conn,
 	}
 
 	// builds router
@@ -62,7 +68,8 @@ func New() *Server {
 }
 
 func (s *Server) Run() error {
-	s.Logger.Infof("[SERVER] running at -> " + s.HTTPServer.Addr)
+	// s.Logger.Infof("[SERVER] running at -> " + s.HTTPServer.Addr)
+	slog.Info("[SERVER] running at -> ", "address", s.HTTPServer.Addr)
 
 	// Create context that listens for the interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -71,7 +78,7 @@ func (s *Server) Run() error {
 	// Run Server in the background
 	go func() {
 		if err := s.HTTPServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			s.Logger.Fatal("[SERVER] failed to serve -> " + err.Error())
+			slog.Error("[SERVER] failed to serve -> ", "error", err.Error())
 		}
 	}()
 
@@ -82,14 +89,14 @@ func (s *Server) Run() error {
 	shutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := s.Db.Close(shutCtx); err != nil {
-		s.Logger.Fatal("[DB] failed to close -> " + err.Error())
+	if err := s.conn.Close(shutCtx); err != nil {
+		slog.Error("[DB] failed to close -> ", "error", err.Error())
 		return err
 	}
 
 	// Trigger graceful shutdown
 	if err := s.HTTPServer.Shutdown(shutCtx); err != nil {
-		s.Logger.Fatal("[SERVER] shutdown failed -> " + err.Error())
+		slog.Error("[SERVER] shutdown failed -> ", "error", err.Error())
 		return err
 	}
 

@@ -14,3 +14,15 @@ Reactjs for frontend (rest whatever AI tell me to install for frontend.)
 docker run --name postgres -e POSTGRES_PASSWORD=password -d -p 5432:5432 postgres:alpine
 ```
 **Note** Make sure to add database with name "e-auc"
+
+### Migration
+To create new migration use
+```
+migrate create -ext sql -dir migrations -seq -digits 2 <name>
+```
+To migrate up use 
+```
+migrate -database <db_uri> -path migrations up
+```
+
+###
