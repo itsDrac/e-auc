@@ -2,25 +2,172 @@ package server
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/itsDrac/e-auc/internal/types"
+	"github.com/itsDrac/e-auc/pkg/config"
 )
 
 func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
-	user := types.User{}
-	err := json.NewDecoder(r.Body).Decode(&user)
+	var req types.RegisterRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		RespondError(w, http.StatusBadRequest, "invalid request payload")
 		return
 	}
 
-	userId, err := s.Services.UserService.CreateUser(r.Context(), user.Email, user.Password, user.Name)
-	if err != nil {
-		http.Error(w, "Failed to create user", http.StatusInternalServerError)
+	if req.Email == "" || len(req.Password) < 8 || req.Username == "" {
+		RespondError(w, http.StatusBadRequest, "missing fields or password too short")
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(userId))
+	userId, err := s.Services.AuthService.AddUser(r.Context(), req.Email, req.Password, req.Username)
+	if err != nil {
+		RespondError(w, http.StatusConflict, err.Error())
+		return
+	}
+	resp := map[string]any{
+		"user_id": userId.String(),
+		"message": "User registered successfully",
+	}
+	RespondJson(w, http.StatusCreated, resp)
+}
+
+func (s *Server) LoginUser(w http.ResponseWriter, r *http.Request) {
+	var req types.LoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, http.StatusBadRequest, "invalid request payload")
+		return
+	}
+	tokens, err := s.Services.AuthService.ValidateUser(r.Context(), req.Email, req.Password)
+	if err != nil {
+		RespondError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	// calculate cookie expiry by validating the refresh Token
+	refreshClaims, _ := s.Services.AuthService.ValidateRefreshToken(tokens.RefreshToken)
+	expiry := refreshClaims.ExpiresAt.Time
+
+	// set the refresh token cookie
+	setRefreshTokenCookie(w, tokens.RefreshToken, expiry)
+
+	resp := map[string]any{
+		"access_token": tokens.AccessToken,
+		"message":      "login successfully",
+	}
+	RespondJson(w, http.StatusOK, resp)
+
+}
+
+func (s *Server) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie(config.RefreshTokenCookieName)
+	if err != nil {
+		RespondError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	refreshTokenString := cookie.Value
+
+	refreshClaims, err := s.Services.AuthService.ValidateRefreshToken(refreshTokenString)
+	if err != nil {
+		RespondError(w, http.StatusUnauthorized, "Invalid refresh token")
+		return
+	}
+	user, err := s.Services.UserService.GetUserByID(r.Context(), refreshClaims.UserID.String())
+	if err != nil {
+		slog.Error("refresh token error", "error", err.Error())
+		RespondError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	tokens, err := s.Services.AuthService.IssueTokenPair(user.ID.String())
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "failed to generate tokens")
+		return
+	}
+	claims, _ := s.Services.AuthService.ValidateRefreshToken(tokens.RefreshToken)
+	setRefreshTokenCookie(w, tokens.RefreshToken, claims.ExpiresAt.Time)
+
+	resp := map[string]any{
+		"access_token": tokens.AccessToken,
+	}
+
+	RespondJson(w, http.StatusOK, resp)
+
+}
+
+func (s *Server) LogoutUser(w http.ResponseWriter, r *http.Request) {
+	accessTokenString := ""
+	authHeader := r.Header.Get("Authorization")
+	if parts := strings.Split(authHeader, " "); len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
+		accessTokenString = parts[1]
+	}
+
+	if err := s.Services.AuthService.BlacklistUserToken(r.Context(), accessTokenString); err != nil {
+		RespondError(w, http.StatusUnauthorized, err.Error())
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     config.RefreshTokenCookieName,
+		Value:    "",
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		Secure:   true,
+		Path:     "/",
+	})
+
+	resp := map[string]any{
+		"message": "logged out successfully",
+	}
+
+	RespondJson(w, http.StatusOK, resp)
+}
+
+func (s *Server) Profile(w http.ResponseWriter, r *http.Request) {
+	claims := GetUserClaims(r.Context())
+	if claims == nil {
+		RespondError(w, http.StatusForbidden, "claims not found in context")
+		return
+	}
+
+	userID := claims.UserID
+
+	user, err := s.Services.UserService.GetUserByID(r.Context(), userID.String())
+
+	if err != nil {
+		RespondError(w, http.StatusForbidden, err.Error())
+		return
+	}
+
+	typedUser := types.User{
+		ID:        user.ID.String(),
+		Email:     user.Email,
+		Name:      user.Name,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Password:  user.Password,
+	}
+
+	resp := map[string]any{
+		"data":    typedUser,
+		"message": "data fetched successfully",
+	}
+
+	RespondJson(w, http.StatusOK, resp)
+
+}
+
+func setRefreshTokenCookie(w http.ResponseWriter, token string, expiry time.Time) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     config.RefreshTokenCookieName,
+		Value:    token,
+		Expires:  expiry,
+		HttpOnly: true,
+		Secure:   true,
+		Path:     "/",
+		SameSite: http.SameSiteStrictMode,
+	})
 }

@@ -15,14 +15,14 @@ import (
 
 	// "github.com/itsDrac/e-auc/pkg/logger"
 	"github.com/itsDrac/e-auc/pkg/utils"
-	_ "github.com/joho/godotenv/autoload"
 	"github.com/jackc/pgx/v5"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 type Server struct {
-	HTTPServer  *http.Server
-	Services    *service.Services
-	conn 	  *pgx.Conn
+	HTTPServer *http.Server
+	Services   *service.Services
+	conn       *pgx.Conn
 }
 
 func New() *Server {
@@ -31,7 +31,7 @@ func New() *Server {
 	host := utils.GetEnv("SERVER_HOST", "0.0.0.0")
 	port := utils.GetEnv("SERVER_PORT", "8080")
 	dbDsn := utils.GetEnv("DB_DSN", "")
-	
+
 	serverAddr := fmt.Sprintf("%s:%s", host, port)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -41,19 +41,19 @@ func New() *Server {
 		slog.Error("[DB] connection failed -> ", "error", err.Error())
 		panic(err)
 	}
-	
-	
+
 	querier := db.New(conn)
+	// userRepo := repository.NewUserrepo(querier)
+
+	services, err := service.NewServices(querier)
 	if err != nil {
-		slog.Error("[DB] connection failed -> ", "error", err.Error())
+		slog.Error("[Service] failed to initialized -> ", "error", err.Error())
 		panic(err)
 	}
-	// userRepo := repository.NewUserrepo(querier)
-	services := service.NewServices(querier)
 
 	serv := &Server{
-		Services:    services,
-		conn:          conn,
+		Services: services,
+		conn:     conn,
 	}
 
 	// builds router

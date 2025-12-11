@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/itsDrac/e-auc/cmd/server"
+	"github.com/itsDrac/e-auc/pkg/utils"
 	"github.com/joho/godotenv"
 )
 
@@ -14,12 +15,19 @@ func main() {
 		slog.Warn("No .env file found or error loading it", "error", err)
 	}
 
+	var handler slog.Handler
+
 	// Configure structured logging with slog
 	logOptions := &slog.HandlerOptions{
 		AddSource: true,
 		Level:     slog.LevelInfo,
 	}
-	handler := slog.NewJSONHandler(os.Stdout, logOptions)
+	env := utils.GetEnv("GO_ENV", "developement")
+	if env == "production" {
+		handler = slog.NewJSONHandler(os.Stdout, logOptions)
+	} else {
+		handler = slog.NewTextHandler(os.Stdout, logOptions)
+	}
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 

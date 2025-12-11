@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	db "github.com/itsDrac/e-auc/internal/database"
@@ -11,27 +13,17 @@ import (
 
 type UserServicer interface {
 	CreateUser(ctx context.Context, email, password, name string) (string, error)
-}
-
-type Services struct {
-	UserService UserServicer
-	ProductService interface{}
-}
-
-func NewServices(db db.Querier) *Services {
-	return &Services{
-		UserService: NewUserService(db),
-	}
+	GetUserByID(ctx context.Context, id string) (db.User, error)
 }
 
 type UserService struct {
 	db db.Querier // We'll be using code genrated by sqlc here
 }
 
-func NewUserService(db db.Querier) *UserService {
+func NewUserService(db db.Querier) (*UserService, error) {
 	return &UserService{
 		db: db,
-	}
+	}, nil
 }
 
 func (us *UserService) CreateUser(ctx context.Context, email, password, name string) (string, error) {
@@ -59,4 +51,21 @@ func (us *UserService) CreateUser(ctx context.Context, email, password, name str
 
 	return user.ID.String(), nil
 
+}
+
+func (us *UserService) GetUserByID(ctx context.Context, id string) (db.User, error) {
+	if id == "" {
+		return db.User{}, fmt.Errorf("id is empty")
+	}
+	userId, err := uuid.Parse(id)
+	if err != nil {
+		return db.User{}, fmt.Errorf("failed to parse user id")
+	}
+	user, err := us.db.GetUserByID(ctx, userId)
+	if err != nil {
+		slog.Error("error while getting user data from ID", "error", err.Error())
+		return db.User{}, fmt.Errorf("user not found")
+	}
+
+	return user, nil
 }
