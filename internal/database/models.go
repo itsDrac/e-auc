@@ -12,10 +12,10 @@ import (
 
 type User struct {
 	ID        uuid.UUID  `json:"id"`
-	Name      string     `json:"name"`
+	Username  string     `json:"username"`
 	Email     string     `json:"email"`
-	Password  string     `json:"password"`
+	Password  string     `json:"-"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
-	DeletedAt *time.Time `json:"deleted_at"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
 }

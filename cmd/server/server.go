@@ -13,10 +13,10 @@ import (
 	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/internal/service"
 
-	// "github.com/itsDrac/e-auc/pkg/logger"
 	"github.com/itsDrac/e-auc/pkg/utils"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/joho/godotenv/autoload"
+	"github.com/go-playground/validator/v10"
 )
 
 type Server struct {
@@ -24,10 +24,11 @@ type Server struct {
 	Services   *service.Services
 	conn       *pgx.Conn
 }
+var validate *validator.Validate
 
 func New() *Server {
 	// log := logger.NewLogger()
-
+	validate = validator.New(validator.WithRequiredStructEnabled())
 	host := utils.GetEnv("SERVER_HOST", "0.0.0.0")
 	port := utils.GetEnv("SERVER_PORT", "8080")
 	dbDsn := utils.GetEnv("DB_DSN", "")
@@ -84,6 +85,7 @@ func (s *Server) Run() error {
 
 	// Listen for the interrupt signal
 	<-ctx.Done()
+	fmt.Println("Shuting down server.")
 
 	// create shutdown context with 30 - sec timeout
 	shutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

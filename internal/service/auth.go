@@ -14,8 +14,8 @@ import (
 )
 
 type AuthServicer interface {
-	AddUser(ctx context.Context, email, password, userName string) (uuid.UUID, error)
-	ValidateUser(ctx context.Context, email, password string) (jwt.Tokens, error)
+	AddUser(context.Context, db.User) (uuid.UUID, error)
+	ValidateUser(context.Context, db.User) (jwt.Tokens, error)
 	BlacklistUserToken(ctx context.Context, accessTokenString string) error
 	ValidateRefreshToken(tokenString string) (*config.RefreshClaims, error)
 	ValidateAccessToken(tokenString string) (*config.UserClaims, error)
@@ -39,21 +39,21 @@ func NewAuthService(db db.Querier) (*AuthService, error) {
 }
 
 // Register
-func (as *AuthService) AddUser(ctx context.Context, email, password, userName string) (uuid.UUID, error) {
-	exists, _ := as.db.GetUserByEmail(ctx, email)
+func (as *AuthService) AddUser(ctx context.Context, u db.User) (uuid.UUID, error) {
+	exists, _ := as.db.GetUserByEmail(ctx, u.Email)
 
 	if exists.ID != uuid.Nil {
-		return uuid.Nil, fmt.Errorf("user already exists with email: %s", email)
+		return uuid.Nil, fmt.Errorf("user already exists with email: %s", u.Email)
 	}
 
-	hash, err := utils.HashPassword(password)
+	hash, err := utils.HashPassword(u.Password)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
 	params := db.CreateUserParams{
-		Email:    email,
-		Name:     userName,
+		Email:    u.Email,
+		Username: u.Username,
 		Password: string(hash),
 	}
 
@@ -65,13 +65,13 @@ func (as *AuthService) AddUser(ctx context.Context, email, password, userName st
 	return user.ID, nil
 }
 
-func (as *AuthService) ValidateUser(ctx context.Context, email, password string) (jwt.Tokens, error) {
-	user, err := as.db.GetUserByEmail(ctx, email)
+func (as *AuthService) ValidateUser(ctx context.Context, u db.User) (jwt.Tokens, error) {
+	user, err := as.db.GetUserByUsername(ctx, u.Username)
 	if err != nil {
 		return jwt.Tokens{}, fmt.Errorf("invalid credentials")
 	}
 
-	if err := utils.ComparePassword(password, user.Password); err != nil {
+	if err := utils.ComparePassword(u.Password, user.Password); err != nil {
 		slog.Error(err.Error())
 		return jwt.Tokens{}, fmt.Errorf("invalid credentials")
 	}

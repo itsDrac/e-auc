@@ -7,24 +7,32 @@ import (
 	"strings"
 	"time"
 
-	"github.com/itsDrac/e-auc/internal/types"
+	// "github.com/itsDrac/e-auc/internal/types"
+	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/pkg/config"
 )
 
 func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
-	var req types.RegisterRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
+	var req CreateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		RespondError(w, http.StatusBadRequest, "invalid request payload")
 		return
 	}
 
-	if req.Email == "" || len(req.Password) < 8 || req.Username == "" {
-		RespondError(w, http.StatusBadRequest, "missing fields or password too short")
+	// User request validation.
+	err := validate.Struct(req)
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	userId, err := s.Services.AuthService.AddUser(r.Context(), req.Email, req.Password, req.Username)
+	user := db.User{
+		Email:    req.Email,
+		Password: req.Password,
+		Username: req.Username,
+	}
+
+	userId, err := s.Services.AuthService.AddUser(r.Context(), user)
 	if err != nil {
 		RespondError(w, http.StatusConflict, err.Error())
 		return
@@ -37,12 +45,25 @@ func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) LoginUser(w http.ResponseWriter, r *http.Request) {
-	var req types.LoginRequest
+	var req LoginUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		RespondError(w, http.StatusBadRequest, "invalid request payload")
 		return
 	}
-	tokens, err := s.Services.AuthService.ValidateUser(r.Context(), req.Email, req.Password)
+
+	err := validate.Struct(req)
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// User request validation.
+	user := db.User{
+		Username: req.Username,
+		Password: req.Password,
+	}
+
+	tokens, err := s.Services.AuthService.ValidateUser(r.Context(), user)
 	if err != nil {
 		RespondError(w, http.StatusUnauthorized, err.Error())
 		return
@@ -142,17 +163,8 @@ func (s *Server) Profile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	typedUser := types.User{
-		ID:        user.ID.String(),
-		Email:     user.Email,
-		Name:      user.Name,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Password:  user.Password,
-	}
-
 	resp := map[string]any{
-		"data":    typedUser,
+		"data":    user,
 		"message": "data fetched successfully",
 	}
 

@@ -34,3 +34,12 @@ sql:
             go_type:
               type: "time.Time"
               pointer: true
+          - column: "users.password"
+            go_type:
+              type: "string"
+            go_struct_tag: 'json:"-"'
+          - column: "users.deleted_at"
+            go_type:
+              type: "time.Time"
+              pointer: true
+            go_struct_tag: 'json:"deleted_at,omitempty"'
