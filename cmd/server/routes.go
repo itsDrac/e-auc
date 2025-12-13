@@ -19,8 +19,16 @@ func (s *Server) routes() *chi.Mux {
 	mux.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", healthCheck)
 
+		r.Route("/auth", func(ar chi.Router) {
+			ar.Post("/register", s.RegisterUser)
+			ar.Post("/login", s.LoginUser)
+			ar.Post("/refresh", s.RefreshToken)
+			ar.Post("/logout", s.LogoutUser)
+		})
+
 		r.Route("/users", func(ur chi.Router) {
-			ur.Post("/", s.RegisterUser)
+			ur.Use(s.AuthMiddleware())
+			ur.Get("/me", s.Profile)
 		})
 	})
 
@@ -28,7 +36,7 @@ func (s *Server) routes() *chi.Mux {
 }
 
 func healthCheck(w http.ResponseWriter, r *http.Request) {
-	
+
 	resp := map[string]any{
 		"message": "ok",
 		"time":    time.Now().Format(time.RFC3339),
