@@ -29,6 +29,9 @@ func (s *Server) routes() *chi.Mux {
 		r.Route("/users", func(ur chi.Router) {
 			ur.Use(s.AuthMiddleware())
 			ur.Get("/me", s.Profile)
+			r.Route("/products", func(r chi.Router) {
+				r.Post("/upload-images", s.UploadImages)
+			})
 		})
 	})
 

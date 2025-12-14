@@ -10,6 +10,20 @@ import (
 	"github.com/google/uuid"
 )
 
+type Product struct {
+	ID           uuid.UUID  `json:"id"`
+	Title        string     `json:"title"`
+	Description  *string    `json:"description"`
+	SellerID     uuid.UUID  `json:"seller_id"`
+	Images       []string   `json:"images"`
+	MinPrice     int32      `json:"min_price"`
+	CurrentPrice int32      `json:"current_price"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	SoldAt       *time.Time `json:"sold_at"`
+	SoldTo       *uuid.UUID `json:"sold_to"`
+}
+
 type User struct {
 	ID        uuid.UUID  `json:"id"`
 	Username  string     `json:"username"`

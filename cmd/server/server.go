@@ -12,11 +12,12 @@ import (
 
 	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/internal/service"
+	"github.com/itsDrac/e-auc/internal/storage"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/itsDrac/e-auc/pkg/utils"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/joho/godotenv/autoload"
-	"github.com/go-playground/validator/v10"
 )
 
 type Server struct {
@@ -46,7 +47,13 @@ func New() *Server {
 	querier := db.New(conn)
 	// userRepo := repository.NewUserrepo(querier)
 
-	services, err := service.NewServices(querier)
+	storage, err := storage.NewMinioStorage()
+	if err != nil {
+		slog.Error("[Storage] failed to initialize -> ", "error", err.Error())
+		panic(err)
+	}
+
+	services, err := service.NewServices(querier, storage)
 	if err != nil {
 		slog.Error("[Service] failed to initialized -> ", "error", err.Error())
 		panic(err)
