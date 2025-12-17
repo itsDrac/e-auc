@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
+	"time"
 
 	"github.com/itsDrac/e-auc/pkg/utils"
 	"github.com/minio/minio-go/v7"
@@ -14,6 +16,7 @@ import (
 type Storager interface {
 	SaveImage(bucket string, objectKey string, data []byte) (*minio.UploadInfo, error)
 	GetFile(bucket string, objectKey string) ([]byte, error)
+	GetFileUrl(bucket string, objectKey string) (string, error)
 	DeleteFile(bucket string, objectKey string) error
 }
 
@@ -57,6 +60,8 @@ func (s *MinioStorage) SaveImage(bucket string, objectKey string, data []byte) (
 	}
 
 	// Upload the image
+	// TODO: Upload image using FPutObject, for which we'll 
+	// need to save the file temporarily on disk first
 	reader := bytes.NewReader(data)
 	info, err := s.client.PutObject(ctx, bucket, objectKey, reader, int64(len(data)), minio.PutObjectOptions{
 		ContentType: "image/jpeg",
@@ -74,4 +79,13 @@ func (s *MinioStorage) GetFile(bucket string, objectKey string) ([]byte, error) 
 
 func (s *MinioStorage) DeleteFile(bucket string, objectKey string) error {
 	return nil
+}
+
+func (s *MinioStorage) GetFileUrl(bucket string, objectKey string) (string, error) {
+	reqParams := make(url.Values)
+	presignedURL, err := s.client.PresignedGetObject(context.Background(), bucket, objectKey, 24*time.Hour, reqParams)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+	return presignedURL.String(), nil
 }

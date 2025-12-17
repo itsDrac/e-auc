@@ -19,18 +19,22 @@ func (s *Server) routes() *chi.Mux {
 	mux.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", healthCheck)
 
-		r.Route("/auth", func(ar chi.Router) {
-			ar.Post("/register", s.RegisterUser)
-			ar.Post("/login", s.LoginUser)
-			ar.Post("/refresh", s.RefreshToken)
-			ar.Post("/logout", s.LogoutUser)
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", s.RegisterUser)
+			r.Post("/login", s.LoginUser)
+			r.Post("/refresh", s.RefreshToken)
+			r.Post("/logout", s.LogoutUser)
 		})
 
-		r.Route("/users", func(ur chi.Router) {
-			ur.Use(s.AuthMiddleware())
-			ur.Get("/me", s.Profile)
+		r.Group(func(r chi.Router) {
+			r.Use(s.AuthMiddleware())
+			r.Route("/users", func(r chi.Router) {
+				r.Get("/me", s.Profile)
+			})
 			r.Route("/products", func(r chi.Router) {
 				r.Post("/upload-images", s.UploadImages)
+				r.Post("/", s.CreateProduct)
+				r.Get("/{productId}/images", s.GetProductImageUrls)
 			})
 		})
 	})

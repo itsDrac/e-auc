@@ -14,7 +14,7 @@ type LoginUserRequest struct {
 type CreateProductRequest struct {
 	Title       string   `json:"title" validate:"required,max=200,min=3"`
 	Description *string   `json:"description"`
-	Images      []string `json:"images" validate:"required,dive,url,min=1,max=5"`
+	Images      []string `json:"images" validate:"required,min=1,max=5"`
 	MinPrice    int32      `json:"min_price" validate:"required,gte=0"`
 	CurrentPrice int32     `json:"current_price" validate:"required,gte=0"`
 }
