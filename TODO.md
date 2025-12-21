@@ -14,6 +14,12 @@
     - [ ] Add user configration in cache.
     - [ ] On Updaing user configration the configrations should be updated in redis as well.
 
+# Swagger
+    - [ ] Add Swagger support for the project.
+    - [ ] Add docs for health
+    - [ ] Add docs for Create, Login and Profile user.
+        
+
 # Discussion.
     - Should we have cache dependency in
         [ ] Server level.

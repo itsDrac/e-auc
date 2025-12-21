@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 func (s *Server) routes() *chi.Mux {
@@ -15,6 +16,9 @@ func (s *Server) routes() *chi.Mux {
 	// global middlewares
 	mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
+	mux.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("http://localhost:8000/swagger/doc.json"), // The url pointing to API definition
+	))
 
 	mux.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", healthCheck)
@@ -38,11 +42,11 @@ func (s *Server) routes() *chi.Mux {
 				r.Get("/{sellerId}", s.ProductsBySellerID)
 			})
 		})
-		r.Route("/products", func(r chi.Router) {
-			r.Get("/{productId}", s.GetProductByID)
-			r.Get("/{productId}/images", s.GetProductImageUrls)
-			
-		})	
+		// r.Route("/products", func(r chi.Router) {
+		// 			r.Get("/{productId}", s.GetProductByID)
+		// 			r.Get("/{productId}/images", s.GetProductImageUrls)
+
+		// 		})
 	})
 
 	return mux

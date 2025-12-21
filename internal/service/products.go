@@ -40,7 +40,7 @@ func (ps *ProductService) AddProduct(ctx context.Context, p db.Product) (uuid.UU
 		MinPrice:     p.MinPrice,
 		CurrentPrice: p.CurrentPrice,
 	}
-	product,  err := ps.db.AddProduct(ctx, arg)
+	product, err := ps.db.AddProduct(ctx, arg)
 	if err != nil {
 		return uuid.Nil, err
 	}

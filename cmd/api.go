@@ -12,7 +12,7 @@ type Application struct {
 
 type Config struct {
 	addr string
-	DB DBConfig
+	DB   DBConfig
 }
 
 type DBConfig struct {

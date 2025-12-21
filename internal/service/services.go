@@ -6,8 +6,8 @@ import (
 )
 
 type Services struct {
-	UserService UserServicer
-	AuthService AuthServicer
+	UserService    UserServicer
+	AuthService    AuthServicer
 	ProductService ProductServicer
 }
 
@@ -26,8 +26,8 @@ func NewServices(db db.Querier, s storage.Storager) (*Services, error) {
 		return nil, err
 	}
 	return &Services{
-		UserService: userService,
-		AuthService: authService,
+		UserService:    userService,
+		AuthService:    authService,
 		ProductService: productService,
 	}, err
 }

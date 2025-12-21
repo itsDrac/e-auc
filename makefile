@@ -1,6 +1,6 @@
 include .env
 
-.PHONY: run migrate-up migrate-down generate-tables setup-dev
+.PHONY: run migrate-up migrate-down generate-tables setup-dev docs
 
 run:
 	go run ./cmd/*.go
@@ -13,6 +13,10 @@ migrate-down:
 
 generate-tables:
 	sqlc generate
+
+docs:
+	swag fmt
+	swag init -g ./cmd/api/main.go -o ./docs
 
 setup-dev:
 	docker run -d --name postgres-dev -e POSTGRES_PASSWORD=password -e POSTGRES_DB=e-auc -p 5432:5432 postgres:alpine
