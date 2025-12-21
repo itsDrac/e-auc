@@ -8,6 +8,21 @@ A chat room would be created for highest bider (buyer at this time) and seller.
 Golang for backend + chi framework for web + sqlc as database interaction layer + postgress.
 Reactjs for frontend (rest whatever AI tell me to install for frontend.)
 
+## Prerequisites
+- Go 1.21+
+- Swag CLI v1.16.4 for API documentation generation
+  ```bash
+  go install github.com/swaggo/swag/cmd/swag@v1.16.4
+  ```
+- Migrate CLI v4.18.2 for database migrations
+  ```bash
+  go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.2
+  ```
+- SQLC v1.29.0 for SQL code generation
+  ```bash
+  go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
+  ```
+
 ## Setup (Dev).
 ### Database
 ```

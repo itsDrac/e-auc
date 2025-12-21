@@ -12,6 +12,18 @@ import (
 	"github.com/itsDrac/e-auc/pkg/config"
 )
 
+// RegisterUser godoc
+//
+//	@Summary		Register a new User
+//	@Description	Register a new user with email, username, and password
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			user	body		CreateUserRequest	true	"User registration details"
+//	@Success		201		{object}	map[string]any
+//	@Failure		400		{object}	map[string]any
+//	@Failure		409		{object}	map[string]any
+//	@Router			/auth/register [post]
 func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	var req CreateUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -44,6 +56,18 @@ func (s *Server) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	RespondJson(w, http.StatusCreated, resp)
 }
 
+// LoginUser godoc
+//
+//	@Summary		Login a User
+//	@Description	Login a user with username and password
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			credentials	body		LoginUserRequest	true	"User login credentials"
+//	@Success		200			{object}	map[string]any
+//	@Failure		400			{object}	map[string]any
+//	@Failure		401			{object}	map[string]any
+//	@Router			/auth/login [post]
 func (s *Server) LoginUser(w http.ResponseWriter, r *http.Request) {
 	var req LoginUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -84,6 +108,16 @@ func (s *Server) LoginUser(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// RefreshToken godoc
+//
+//	@Summary		Refresh Access Token
+//	@Description	Refresh the access token using a valid refresh token
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	map[string]any
+//	@Failure		401	{object}	map[string]any
+//	@Router			/auth/refresh [post]
 func (s *Server) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(config.RefreshTokenCookieName)
 	if err != nil {
@@ -120,6 +154,16 @@ func (s *Server) RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// LogoutUser godoc
+//
+//	@Summary		Logout User
+//	@Description	Logout the user by blacklisting the access token and clearing the refresh token cookie
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	map[string]any
+//	@Failure		401	{object}	map[string]any
+//	@Router			/auth/logout [post]
 func (s *Server) LogoutUser(w http.ResponseWriter, r *http.Request) {
 	accessTokenString := ""
 	authHeader := r.Header.Get("Authorization")
@@ -147,6 +191,16 @@ func (s *Server) LogoutUser(w http.ResponseWriter, r *http.Request) {
 	RespondJson(w, http.StatusOK, resp)
 }
 
+// Profile godoc
+//
+//	@Summary		Get User Profile
+//	@Description	Retrieve the profile information of the authenticated user
+//	@Tags			Users
+//	@Requirements	BearerAuth
+//	@Produce		json
+//	@Success		200	{object}	map[string]any
+//	@Failure		403	{object}	map[string]any
+//	@Router			/users/me [get]
 func (s *Server) Profile(w http.ResponseWriter, r *http.Request) {
 	claims := GetUserClaims(r.Context())
 	if claims == nil {

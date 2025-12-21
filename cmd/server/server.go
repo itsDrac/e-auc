@@ -25,6 +25,7 @@ type Server struct {
 	Services   *service.Services
 	conn       *pgx.Conn
 }
+
 var validate *validator.Validate
 
 func New() *Server {

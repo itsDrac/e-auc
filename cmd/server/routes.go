@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 func (s *Server) routes() *chi.Mux {
@@ -15,6 +16,9 @@ func (s *Server) routes() *chi.Mux {
 	// global middlewares
 	mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
+	mux.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("http://localhost:8000/swagger/doc.json"), // The url pointing to API definition
+	))
 
 	mux.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", healthCheck)
@@ -34,14 +38,28 @@ func (s *Server) routes() *chi.Mux {
 			r.Route("/products", func(r chi.Router) {
 				r.Post("/upload-images", s.UploadImages)
 				r.Post("/", s.CreateProduct)
-				r.Get("/{productId}/images", s.GetProductImageUrls)
+				r.Patch("/{productId}/bid", s.PlaceBid)
+				r.Get("/{sellerId}", s.ProductsBySellerID)
 			})
 		})
+		// r.Route("/products", func(r chi.Router) {
+		// 			r.Get("/{productId}", s.GetProductByID)
+		// 			r.Get("/{productId}/images", s.GetProductImageUrls)
+
+		// 		})
 	})
 
 	return mux
 }
 
+// Healthcheck godoc
+// @Summary      Health Check
+// @Description  Check if the server is running
+// @Tags         Health
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/v1/health [get]
 func healthCheck(w http.ResponseWriter, r *http.Request) {
 
 	resp := map[string]any{

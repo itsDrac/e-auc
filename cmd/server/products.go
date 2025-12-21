@@ -14,6 +14,18 @@ import (
 	db "github.com/itsDrac/e-auc/internal/database"
 )
 
+// CreateProduct godoc
+//
+//	@Summary		Create a new Product
+//	@Description	Create a new product listing
+//	@Tags			Products
+//	@Accept			json
+//	@Produce		json
+//	@Param			product	body		CreateProductRequest	true	"Product details"
+//	@Success		201		{object}	map[string]any
+//	@Failure		400		{object}	map[string]any
+//	@Failure		401		{object}	map[string]any
+//	@Router			/products [post]
 func (s *Server) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	var req CreateProductRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -56,6 +68,18 @@ func (s *Server) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	RespondJson(w, http.StatusCreated, resp)
 }
 
+// UploadImages godoc
+//
+//	@Summary		Upload Product Images
+//	@Description	Upload images for a product
+//	@Tags			Products
+//	@Accept			multipart/form-data
+//	@Produce		json
+//	@Param			images	formData	file	true	"Product images"
+//	@Success		200		{object}	map[string]any
+//	@Failure		400		{object}	map[string]any
+//	@Failure		401		{object}	map[string]any
+//	@Router			/products/upload-images [post]
 func (s *Server) UploadImages(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 50<<20) // Limit request body to 50MB
 	// Parse the multipart form
@@ -93,7 +117,7 @@ func (s *Server) UploadImages(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer file.Close()
-		
+
 		// Read file data
 		fileData, err := io.ReadAll(file)
 		if err != nil {
@@ -127,6 +151,18 @@ func (s *Server) UploadImages(w http.ResponseWriter, r *http.Request) {
 	RespondJson(w, http.StatusOK, resp)
 }
 
+// GetProductImageUrls godoc
+//
+//	@Summary		Get Product Image URLs
+//	@Description	Retrieve image URLs for a specific product by the given product ID
+//	@Tags			Products
+//	@Accept			json
+//	@Produce		json
+//	@Param			productId	path		string	true	"Product ID"
+//	@Success		200			{object}	map[string]any
+//	@Failure		400			{object}	map[string]any
+//	@Failure		500			{object}	map[string]any
+//	@Router			/products/{productId}/images [get]
 func (s *Server) GetProductImageUrls(w http.ResponseWriter, r *http.Request) {
 	productId := chi.URLParam(r, "productId")
 	if productId == "" {
@@ -142,6 +178,135 @@ func (s *Server) GetProductImageUrls(w http.ResponseWriter, r *http.Request) {
 
 	resp := map[string]any{
 		"image_urls": imageUrls,
+	}
+	RespondJson(w, http.StatusOK, resp)
+}
+
+// GetProductByID godoc
+//
+//	@Summary		Get Product by ID
+//	@Description	Retrieve a specific product by the given product ID
+//	@Tags			Products
+//	@Accept			json
+//	@Produce		json
+//	@Param			productId	path		string	true	"Product ID"
+//	@Success		200			{object}	map[string]any
+//	@Failure		400			{object}	map[string]any
+//	@Failure		500			{object}	map[string]any
+//	@Router			/products/{productId} [get]
+func (s *Server) GetProductByID(w http.ResponseWriter, r *http.Request) {
+	productId := chi.URLParam(r, "productId")
+	if productId == "" {
+		RespondError(w, http.StatusBadRequest, "product ID is required")
+		return
+	}
+
+	product, err := s.Services.ProductService.GetProductByID(r.Context(), productId)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp := map[string]any{
+		"product": product,
+	}
+	RespondJson(w, http.StatusOK, resp)
+}
+
+// PlaceBid godoc
+//
+//	@Summary		Place a Bid on a Product
+//	@Description	Place a bid(update current price) on a specific product by the given product ID
+//	@Tags			Products
+//	@Accept			json
+//	@Produce		json
+//	@Param			productId	path		string			true	"Product ID"
+//	@Param			bid			body		PlaceBidRequest	true	"Bid details"
+//	@Success		200			{object}	map[string]any
+//	@Failure		400			{object}	map[string]any
+//	@Failure		401			{object}	map[string]any
+//	@Failure		500			{object}	map[string]any
+//	@Router			/products/{productId}/bid [patch]
+func (s *Server) PlaceBid(w http.ResponseWriter, r *http.Request) {
+	productId := chi.URLParam(r, "productId")
+	if productId == "" {
+		RespondError(w, http.StatusBadRequest, "product ID is required")
+		return
+	}
+
+	var req PlaceBidRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, http.StatusBadRequest, "invalid request payload")
+		return
+	}
+
+	// Get Current userClaim form request context
+	claims := GetUserClaims(r.Context())
+	if claims == nil {
+		RespondError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	err := s.Services.ProductService.PlaceBid(r.Context(), productId, claims.UserID, req.BidAmount)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp := map[string]any{
+		"message": "Bid placed successfully",
+	}
+	RespondJson(w, http.StatusOK, resp)
+}
+
+// ProductsBySellerID godoc
+//
+//	@Summary		Get Products by Seller ID
+//	@Description	Retrieve products listed by a specific seller. If no seller ID is provided, retrieves products for the current user.
+//	@Tags			Products
+//	@Accept			json
+//	@Produce		json
+//	@Param			sellerId	path		string	false	"Seller ID"
+//	@Param			limit		query		int		false	"Number of products to return"
+//	@Param			offset		query		int		false	"Number of products to skip"
+//	@Success		200			{object}	map[string]any
+//	@Failure		400			{object}	map[string]any
+//	@Failure		401			{object}	map[string]any
+//	@Failure		500			{object}	map[string]any
+//	@Router			/products/{sellerId} [get]
+func (s *Server) ProductsBySellerID(w http.ResponseWriter, r *http.Request) {
+	// If seller id is not given in the URL params, then set the seller id to the current user id
+	var sellerId string
+	sellerId = chi.URLParam(r, "sellerId")
+	if sellerId == "" {
+		claims := GetUserClaims(r.Context())
+		if claims == nil {
+			RespondError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		sellerId = claims.UserID.String()
+	}
+	// Get limit and offset from query params for pagination
+	// Default limit is 10 and offset is 0
+	limitParam := r.URL.Query().Get("limit")
+	offsetParam := r.URL.Query().Get("offset")
+	var limit uint = 10
+	var offset uint = 0
+	if limitParam != "" {
+		fmt.Sscanf(limitParam, "%d", &limit)
+	}
+	if offsetParam != "" {
+		fmt.Sscanf(offsetParam, "%d", &offset)
+	}
+
+	products, err := s.Services.ProductService.GetProductsBySellerID(r.Context(), sellerId, limit, offset)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp := map[string]any{
+		"products": products,
 	}
 	RespondJson(w, http.StatusOK, resp)
 }

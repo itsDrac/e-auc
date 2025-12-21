@@ -60,7 +60,7 @@ func (s *MinioStorage) SaveImage(bucket string, objectKey string, data []byte) (
 	}
 
 	// Upload the image
-	// TODO: Upload image using FPutObject, for which we'll 
+	// TODO: Upload image using FPutObject, for which we'll
 	// need to save the file temporarily on disk first
 	reader := bytes.NewReader(data)
 	info, err := s.client.PutObject(ctx, bucket, objectKey, reader, int64(len(data)), minio.PutObjectOptions{

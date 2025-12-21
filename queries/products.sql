@@ -38,8 +38,7 @@ SET sold_at = NOW(), sold_to = $2, current_price = $3, updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 
--- name: UpdateProductCurrentPrice :one
+-- name: UpdateProductCurrentPrice :exec
 UPDATE products
 SET current_price = $2, updated_at = NOW()
-WHERE id = $1
-RETURNING *;
+WHERE id = $1;
