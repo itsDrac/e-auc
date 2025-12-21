@@ -174,11 +174,10 @@ func (q *Queries) MarkProductAsSold(ctx context.Context, arg MarkProductAsSoldPa
 	return i, err
 }
 
-const updateProductCurrentPrice = `-- name: UpdateProductCurrentPrice :one
+const updateProductCurrentPrice = `-- name: UpdateProductCurrentPrice :exec
 UPDATE products
 SET current_price = $2, updated_at = NOW()
 WHERE id = $1
-RETURNING id, title, description, seller_id, images, min_price, current_price, created_at, updated_at, sold_at, sold_to
 `
 
 type UpdateProductCurrentPriceParams struct {
@@ -186,23 +185,9 @@ type UpdateProductCurrentPriceParams struct {
 	CurrentPrice int32     `json:"current_price"`
 }
 
-func (q *Queries) UpdateProductCurrentPrice(ctx context.Context, arg UpdateProductCurrentPriceParams) (Product, error) {
-	row := q.db.QueryRow(ctx, updateProductCurrentPrice, arg.ID, arg.CurrentPrice)
-	var i Product
-	err := row.Scan(
-		&i.ID,
-		&i.Title,
-		&i.Description,
-		&i.SellerID,
-		&i.Images,
-		&i.MinPrice,
-		&i.CurrentPrice,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.SoldAt,
-		&i.SoldTo,
-	)
-	return i, err
+func (q *Queries) UpdateProductCurrentPrice(ctx context.Context, arg UpdateProductCurrentPriceParams) error {
+	_, err := q.db.Exec(ctx, updateProductCurrentPrice, arg.ID, arg.CurrentPrice)
+	return err
 }
 
 const updateProductImages = `-- name: UpdateProductImages :one

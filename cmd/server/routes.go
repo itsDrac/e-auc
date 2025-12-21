@@ -34,9 +34,15 @@ func (s *Server) routes() *chi.Mux {
 			r.Route("/products", func(r chi.Router) {
 				r.Post("/upload-images", s.UploadImages)
 				r.Post("/", s.CreateProduct)
-				r.Get("/{productId}/images", s.GetProductImageUrls)
+				r.Patch("/{productId}/bid", s.PlaceBid)
+				r.Get("/{sellerId}", s.ProductsBySellerID)
 			})
 		})
+		r.Route("/products", func(r chi.Router) {
+			r.Get("/{productId}", s.GetProductByID)
+			r.Get("/{productId}/images", s.GetProductImageUrls)
+			
+		})	
 	})
 
 	return mux

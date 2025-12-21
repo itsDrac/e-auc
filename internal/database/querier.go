@@ -20,7 +20,7 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	MarkProductAsSold(ctx context.Context, arg MarkProductAsSoldParams) (Product, error)
-	UpdateProductCurrentPrice(ctx context.Context, arg UpdateProductCurrentPriceParams) (Product, error)
+	UpdateProductCurrentPrice(ctx context.Context, arg UpdateProductCurrentPriceParams) error
 	UpdateProductImages(ctx context.Context, arg UpdateProductImagesParams) (Product, error)
 }
 

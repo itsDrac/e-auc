@@ -145,3 +145,91 @@ func (s *Server) GetProductImageUrls(w http.ResponseWriter, r *http.Request) {
 	}
 	RespondJson(w, http.StatusOK, resp)
 }
+
+func (s *Server) GetProductByID(w http.ResponseWriter, r *http.Request) {
+	productId := chi.URLParam(r, "productId")
+	if productId == "" {
+		RespondError(w, http.StatusBadRequest, "product ID is required")
+		return
+	}
+
+	product, err := s.Services.ProductService.GetProductByID(r.Context(), productId)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp := map[string]any{
+		"product": product,
+	}
+	RespondJson(w, http.StatusOK, resp)
+}
+
+func (s *Server) PlaceBid(w http.ResponseWriter, r *http.Request) {
+	productId := chi.URLParam(r, "productId")
+	if productId == "" {
+		RespondError(w, http.StatusBadRequest, "product ID is required")
+		return
+	}
+
+	var req PlaceBidRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, http.StatusBadRequest, "invalid request payload")
+		return
+	}
+
+	// Get Current userClaim form request context
+	claims := GetUserClaims(r.Context())
+	if claims == nil {
+		RespondError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	err := s.Services.ProductService.PlaceBid(r.Context(), productId, claims.UserID, req.BidAmount)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp := map[string]any{
+		"message": "Bid placed successfully",
+	}
+	RespondJson(w, http.StatusOK, resp)
+}
+
+func (s *Server) ProductsBySellerID(w http.ResponseWriter, r *http.Request) {
+	// If seller id is not given in the URL params, then set the seller id to the current user id
+	var sellerId string
+	sellerId = chi.URLParam(r, "sellerId")
+	if sellerId == "" {
+		claims := GetUserClaims(r.Context())
+		if claims == nil {
+			RespondError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		sellerId = claims.UserID.String()
+	}
+	// Get limit and offset from query params for pagination
+	// Default limit is 10 and offset is 0
+	limitParam := r.URL.Query().Get("limit")
+	offsetParam := r.URL.Query().Get("offset")
+	var limit uint = 10
+	var offset uint = 0
+	if limitParam != "" {
+		fmt.Sscanf(limitParam, "%d", &limit)
+	}
+	if offsetParam != "" {
+		fmt.Sscanf(offsetParam, "%d", &offset)
+	}
+
+	products, err := s.Services.ProductService.GetProductsBySellerID(r.Context(), sellerId, limit, offset)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp := map[string]any{
+		"products": products,
+	}
+	RespondJson(w, http.StatusOK, resp)
+}

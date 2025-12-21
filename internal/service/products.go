@@ -13,6 +13,9 @@ type ProductServicer interface {
 	AddProduct(context.Context, db.Product) (uuid.UUID, error)
 	UploadProductImage(context.Context, string, []byte) (string, error)
 	GetProductUrls(context.Context, string) ([]string, error)
+	GetProductByID(context.Context, string) (*db.Product, error)
+	PlaceBid(context.Context, string, uuid.UUID, int32) error
+	GetProductsBySellerID(context.Context, string, uint, uint) ([]db.Product, error)
 	// Define methods related to product service here
 }
 
@@ -74,4 +77,62 @@ func (ps *ProductService) GetProductUrls(ctx context.Context, productId string) 
 		urls = append(urls, url)
 	}
 	return urls, nil
+}
+
+func (ps *ProductService) GetProductByID(ctx context.Context, productId string) (*db.Product, error) {
+	productUUID, err := uuid.Parse(productId)
+	if err != nil {
+		return nil, err
+	}
+	product, err := ps.db.GetProductByID(ctx, productUUID)
+	if err != nil {
+		return nil, err
+	}
+	return &product, nil
+}
+
+func (ps *ProductService) PlaceBid(ctx context.Context, productId string, bidderId uuid.UUID, bidAmount int32) error {
+	productUUID, err := uuid.Parse(productId)
+	if err != nil {
+		return err
+	}
+	// Should we check if the product.SellerId == bidderId to prevent self-bidding?
+	product, err := ps.db.GetProductByID(ctx, productUUID)
+	if err != nil {
+		return err
+	}
+	if product.SellerID == bidderId {
+		return errors.New("seller cannot bid on their own product")
+	}
+	if bidAmount <= product.CurrentPrice {
+		return errors.New("bid amount must be greater than current price")
+	}
+	// TODO: Add code to check for seller threshold on bidding of its products.
+	// TODO: If the bidding amount is higher than the threshold, notify the seller via email.
+	// TODO: Also, Don't update the product's CurrentPrice.
+	err = ps.db.UpdateProductCurrentPrice(ctx, db.UpdateProductCurrentPriceParams{
+		ID:           productUUID,
+		CurrentPrice: bidAmount,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (ps *ProductService) GetProductsBySellerID(ctx context.Context, sellerId string, limit uint, offset uint) ([]db.Product, error) {
+	sellerUUID, err := uuid.Parse(sellerId)
+	if err != nil {
+		return nil, err
+	}
+	args := db.GetProductsBySellerIDParams{
+		SellerID: sellerUUID,
+		Limit:    int32(limit),
+		Offset:   int32(offset),
+	}
+	products, err := ps.db.GetProductsBySellerID(ctx, args)
+	if err != nil {
+		return nil, err
+	}
+	return products, nil
 }

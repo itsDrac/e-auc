@@ -18,3 +18,7 @@ type CreateProductRequest struct {
 	MinPrice    int32      `json:"min_price" validate:"required,gte=0"`
 	CurrentPrice int32     `json:"current_price" validate:"required,gte=0"`
 }
+
+type PlaceBidRequest struct {
+	BidAmount int32 `json:"bid_amount" validate:"required,gt=0"`
+}
