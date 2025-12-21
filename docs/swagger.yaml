@@ -72,6 +72,22 @@ info:
   title: E-Auction API
   version: 0.0.1
 paths:
+  /api/v1/health:
+    get:
+      consumes:
+      - application/json
+      description: Check if the server is running
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Health Check
+      tags:
+      - Health
   /auth/login:
     post:
       consumes:

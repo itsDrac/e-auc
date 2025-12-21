@@ -52,6 +52,14 @@ func (s *Server) routes() *chi.Mux {
 	return mux
 }
 
+// Healthcheck godoc
+// @Summary      Health Check
+// @Description  Check if the server is running
+// @Tags         Health
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}
+// @Router       /api/v1/health [get]
 func healthCheck(w http.ResponseWriter, r *http.Request) {
 
 	resp := map[string]any{

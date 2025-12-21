@@ -15,9 +15,9 @@
     - [ ] On Updaing user configration the configrations should be updated in redis as well.
 
 # Swagger
-    - [ ] Add Swagger support for the project.
-    - [ ] Add docs for health
-    - [ ] Add docs for Create, Login and Profile user.
+    - [X] Add Swagger support for the project.
+    - [X] Add docs for health
+    - [X] Add docs for Create, Login and Profile user.
         
 
 # Discussion.
