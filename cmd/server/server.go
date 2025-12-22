@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/itsDrac/e-auc/internal/cache"
 	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/internal/service"
 	"github.com/itsDrac/e-auc/internal/storage"
@@ -24,6 +25,7 @@ type Server struct {
 	HTTPServer *http.Server
 	Services   *service.Services
 	conn       *pgx.Conn
+	cache      *cache.RedisCache
 }
 
 var validate *validator.Validate
@@ -60,9 +62,22 @@ func New() *Server {
 		panic(err)
 	}
 
+	cache, err := cache.NewRedisClient(ctx)
+	if err != nil {
+		slog.Error("[Cache] failed to initialized ->", "error", err.Error())
+		panic(err)
+	}
+
+	if err := cache.Ping(ctx); err != nil {
+		slog.Error("[Cache] Unable to ping ->", "error", err.Error())
+	} else {
+		slog.Info("[Cache] connected")
+	}
+
 	serv := &Server{
 		Services: services,
 		conn:     conn,
+		cache:    cache,
 	}
 
 	// builds router
@@ -78,9 +93,8 @@ func New() *Server {
 
 func (s *Server) Run() error {
 	// s.Logger.Infof("[SERVER] running at -> " + s.HTTPServer.Addr)
-	slog.Info("[SERVER] running at -> ", "address", s.HTTPServer.Addr)
+	slog.Info("[SERVER] running -> ", "address", s.HTTPServer.Addr)
 
-	// Create context that listens for the interrupt signal
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -93,22 +107,31 @@ func (s *Server) Run() error {
 
 	// Listen for the interrupt signal
 	<-ctx.Done()
-	fmt.Println("Shuting down server.")
+	slog.Info("[SERVER] shutdown signal received")
 
 	// create shutdown context with 30 - sec timeout
 	shutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := s.conn.Close(shutCtx); err != nil {
-		slog.Error("[DB] failed to close -> ", "error", err.Error())
-		return err
-	}
-
-	// Trigger graceful shutdown
+	// Stop http server
 	if err := s.HTTPServer.Shutdown(shutCtx); err != nil {
 		slog.Error("[SERVER] shutdown failed -> ", "error", err.Error())
 		return err
 	}
+
+	// close cache
+	if err := s.cache.Close(); err != nil {
+		slog.Error("[Cache] close failed ->", "error", err.Error())
+		return err
+	}
+
+	// close db
+	if err := s.conn.Close(shutCtx); err != nil {
+		slog.Error("[DB] close failed -> ", "error", err.Error())
+		return err
+	}
+
+	slog.Info("[SERVER] shutdown complete.")
 
 	return nil
 }

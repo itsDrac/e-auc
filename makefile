@@ -1,9 +1,10 @@
 include .env
+export
 
 .PHONY: run migrate-up migrate-down generate-tables setup-dev docs
 
 run:
-	go run ./cmd/*.go
+	@go run ./cmd/*.go || true
 
 migrate-up:
 	migrate -path ./migrations -database "$(DB_DSN)" up
