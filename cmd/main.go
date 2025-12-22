@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"os"
 
-	_ "github.com/itsDrac/e-auc/docs"
 	"github.com/itsDrac/e-auc/cmd/server"
+	_ "github.com/itsDrac/e-auc/docs"
 	"github.com/joho/godotenv"
 )
 
