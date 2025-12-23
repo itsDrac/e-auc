@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,10 +11,16 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/internal/model"
 	"github.com/itsDrac/e-auc/internal/service"
+)
+
+const (
+	productParamKey string = "productId"
+	sellerParamKey  string = "sellerId"
 )
 
 type ProductHandler struct {
@@ -40,22 +47,31 @@ func NewProductHandler(sevc service.ProductServicer) (*ProductHandler, error) {
 //	@Router			/products [post]
 func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	var req model.CreateProductRequest
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		RespondError(w, http.StatusBadRequest, "invalid request payload")
+		RespondErrorJSON(w, r, http.StatusBadRequest, ErrInvalidJson.Error(), "invalid json format", nil)
 		return
 	}
 
 	// Product request validation.
-	err := validate.Struct(req)
-	if err != nil {
-		RespondError(w, http.StatusBadRequest, err.Error())
+	if err := validate.Struct(req); err != nil {
+		var details []model.ErrorDetails
+		if validErrs, ok := err.(validator.ValidationErrors); ok {
+			for _, vErr := range validErrs {
+				details = append(details, model.ErrorDetails{
+					Field: vErr.Field(),
+					Issue: fmt.Sprintf("failed on tag '%s' with param '%s'", vErr.Tag(), vErr.Param()),
+				})
+			}
+		}
+		RespondErrorJSON(w, r, http.StatusBadRequest, ErrInvalidRequest.Error(), "Input validation failed", details)
 		return
 	}
 
 	// Get Current userClaim form request context
 	claims := GetUserClaims(r.Context())
 	if claims == nil {
-		RespondError(w, http.StatusUnauthorized, "unauthorized")
+		RespondErrorJSON(w, r, http.StatusUnauthorized, ErrAuthFailed.Error(), "user claims not found in context", nil)
 		return
 	}
 
@@ -70,14 +86,21 @@ func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 
 	productId, err := h.svc.AddProduct(r.Context(), product)
 	if err != nil {
-		RespondError(w, http.StatusInternalServerError, err.Error())
+		if err.Error() == service.ErrInsufficientBid.Error() {
+			RespondErrorJSON(w, r, http.StatusInternalServerError, ErrSelfBidding.Error(), "you cannot bid on your own product", nil)
+			return
+		}
+		if err.Error() == service.ErrInsufficientBid.Error() {
+			RespondErrorJSON(w, r, http.StatusInternalServerError, ErrBidLow.Error(), "Your bid must be higher than the current price", nil)
+			return
+		}
+		RespondErrorJSON(w, r, http.StatusInternalServerError, ErrInternalServer.Error(), "Internal server error", nil)
 		return
 	}
 	resp := map[string]any{
 		"product_id": productId.String(),
-		"message":    "Product created successfully",
 	}
-	RespondJson(w, http.StatusCreated, resp)
+	RespondSuccessJSON(w, r, http.StatusCreated, "Product created successfully", resp)
 }
 
 // UploadImages godoc
@@ -93,19 +116,22 @@ func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 //	@Failure		401		{object}	map[string]any
 //	@Router			/products/upload-images [post]
 func (h *ProductHandler) UploadImages(w http.ResponseWriter, r *http.Request) {
+
 	r.Body = http.MaxBytesReader(w, r.Body, 50<<20) // Limit request body to 50MB
-	// Parse the multipart form
-	err := r.ParseMultipartForm(10 << 20) // 10MB
-	if err != nil {
-		RespondError(w, http.StatusBadRequest, "failed to parse multipart form")
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		RespondErrorJSON(w, r, http.StatusBadRequest, ErrInvalidForm.Error(), "failed to parse multipart form", nil)
 		return
 	}
-	defer r.MultipartForm.RemoveAll()
+	defer func() {
+		if r.MultipartForm != nil {
+			r.MultipartForm.RemoveAll()
+		}
+	}()
 
 	// Retrieve the files from the "images" form field
 	files := r.MultipartForm.File["images"]
 	if len(files) == 0 {
-		RespondError(w, http.StatusBadRequest, "no images uploaded")
+		RespondErrorJSON(w, r, http.StatusBadRequest, ErrMissingFiles.Error(), "No images uploaded", nil)
 		return
 	}
 
@@ -113,40 +139,46 @@ func (h *ProductHandler) UploadImages(w http.ResponseWriter, r *http.Request) {
 	for _, fileHeader := range files {
 		// Use fileHeader.Size to check file size if needed
 		if fileHeader.Size > 10<<20 { // 10MB limit per file
-			RespondError(w, http.StatusBadRequest, "file size exceeds 10MB limit")
+			fileNameResp := fmt.Sprintf("File %s exceeds 10MB limit", fileHeader.Filename)
+			RespondErrorJSON(w, r, http.StatusBadRequest, ErrLargeFile.Error(), fileNameResp, nil)
 			return
 		}
-		// Check the file type if needed (e.g., only allow JPEG/PNG)
-		contentType := fileHeader.Header.Get("Content-Type")
-		if !strings.HasPrefix(contentType, "image/") {
-			RespondError(w, http.StatusBadRequest, "only image files are allowed")
-			return
-		}
-		// Open the uploaded file
+
+		// open file
 		file, err := fileHeader.Open()
 		if err != nil {
-			RespondError(w, http.StatusInternalServerError, "failed to open uploaded file")
+			RespondErrorJSON(w, r, http.StatusInternalServerError, ErrFileOpen.Error(), "Failed to process uploaded file", nil)
 			return
 		}
-		defer file.Close()
 
 		// Read file data
 		fileData, err := io.ReadAll(file)
+		file.Close()
+
 		if err != nil {
-			RespondError(w, http.StatusInternalServerError, "failed to read uploaded file")
+			RespondErrorJSON(w, r, http.StatusInternalServerError, ErrFileReadError.Error(), "failed to read uploaded file", nil)
+			return
+		}
+
+		detectedType := http.DetectContentType(fileData)
+		if !strings.HasPrefix(detectedType, "image/") {
+			fileNameResp := fmt.Sprintf("File %s is not a valid image", fileHeader.Filename)
+			RespondErrorJSON(w, r, http.StatusBadRequest, ErrInvalidFile.Error(), fileNameResp, nil)
 			return
 		}
 
 		// Generate unique filename using UUID and preserve the original extension
 		ext := filepath.Ext(fileHeader.Filename)
-
+		if ext == "" {
+			ext = ".jpg"
+		}
 		uniqueFilename := uuid.New().String() + ext
 		fmt.Println("Generated unique filename:", uniqueFilename)
 		// Upload to storage service
 		imageURL, err := h.svc.UploadProductImage(r.Context(), uniqueFilename, fileData)
 		if err != nil {
 			slog.Error("Error on uploading image", "err:", err.Error())
-			RespondError(w, http.StatusInternalServerError, "failed to upload image")
+			RespondErrorJSON(w, r, http.StatusInternalServerError, ErrUploadFailed.Error(), "failed to store image", nil)
 			return
 		}
 
@@ -158,9 +190,8 @@ func (h *ProductHandler) UploadImages(w http.ResponseWriter, r *http.Request) {
 
 	resp := map[string]any{
 		"image_urls": imageURLs,
-		"message":    "Images uploaded successfully",
 	}
-	RespondJson(w, http.StatusOK, resp)
+	RespondSuccessJSON(w, r, http.StatusOK, "Images uploaded successfully", resp)
 }
 
 // GetProductImageUrls godoc
@@ -176,22 +207,32 @@ func (h *ProductHandler) UploadImages(w http.ResponseWriter, r *http.Request) {
 //	@Failure		500			{object}	map[string]any
 //	@Router			/products/{productId}/images [get]
 func (h *ProductHandler) GetProductImageUrls(w http.ResponseWriter, r *http.Request) {
-	productId := chi.URLParam(r, "productId")
+	productId := chi.URLParam(r, productParamKey)
 	if productId == "" {
-		RespondError(w, http.StatusBadRequest, "product ID is required")
+		RespondErrorJSON(w, r, http.StatusBadRequest, ErrMissingParam.Error(), "Product ID is required", nil)
 		return
 	}
 
 	imageUrls, err := h.svc.GetProductUrls(r.Context(), productId)
 	if err != nil {
-		RespondError(w, http.StatusInternalServerError, err.Error())
+		if errors.Is(err, service.ErrUrlsNotFound) {
+			RespondErrorJSON(w, r, http.StatusNotFound, ErrUrlsNotFound.Error(), "Failed to retrieve images", nil)
+			return
+		}
+		slog.Error("[DB] failed to fetch product images -> ", "product_id", productId, "error", err)
+		RespondErrorJSON(w, r, http.StatusInternalServerError, ErrDb.Error(), "failed to retrieve product urls", nil)
 		return
+	}
+
+	// fallback - if db returns a nil for a empty list
+	if imageUrls == nil {
+		imageUrls = []string{}
 	}
 
 	resp := map[string]any{
 		"image_urls": imageUrls,
 	}
-	RespondJson(w, http.StatusOK, resp)
+	RespondSuccessJSON(w, r, http.StatusOK, "Images retrieved successfully", resp)
 }
 
 // GetProductByID godoc
@@ -207,22 +248,27 @@ func (h *ProductHandler) GetProductImageUrls(w http.ResponseWriter, r *http.Requ
 //	@Failure		500			{object}	map[string]any
 //	@Router			/products/{productId} [get]
 func (h *ProductHandler) GetProductByID(w http.ResponseWriter, r *http.Request) {
-	productId := chi.URLParam(r, "productId")
+	productId := chi.URLParam(r, productParamKey)
 	if productId == "" {
-		RespondError(w, http.StatusBadRequest, "product ID is required")
+		RespondErrorJSON(w, r, http.StatusBadRequest, ErrMissingParam.Error(), "Product ID is required", nil)
 		return
 	}
 
 	product, err := h.svc.GetProductByID(r.Context(), productId)
 	if err != nil {
-		RespondError(w, http.StatusInternalServerError, err.Error())
+		if errors.Is(err, service.ErrProductNotFound) {
+			RespondErrorJSON(w, r, http.StatusNotFound, ErrProductNotFound.Error(), "Product not found", nil)
+			return
+		}
+		slog.Error("[DB] failed to fetch product", "product_id", productId, "error", err)
+		RespondErrorJSON(w, r, http.StatusInternalServerError, ErrDb.Error(), "failed to retrieve product", nil)
 		return
 	}
 
 	resp := map[string]any{
 		"product": product,
 	}
-	RespondJson(w, http.StatusOK, resp)
+	RespondSuccessJSON(w, r, http.StatusOK, "Product fetched successfully", resp)
 }
 
 // PlaceBid godoc
@@ -240,35 +286,33 @@ func (h *ProductHandler) GetProductByID(w http.ResponseWriter, r *http.Request) 
 //	@Failure		500			{object}	map[string]any
 //	@Router			/products/{productId}/bid [patch]
 func (h *ProductHandler) PlaceBid(w http.ResponseWriter, r *http.Request) {
-	productId := chi.URLParam(r, "productId")
+	productId := chi.URLParam(r, productParamKey)
 	if productId == "" {
-		RespondError(w, http.StatusBadRequest, "product ID is required")
+		RespondErrorJSON(w, r, http.StatusBadRequest, ErrMissingParam.Error(), "Product ID is required", nil)
 		return
 	}
 
 	var req model.PlaceBidRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		RespondError(w, http.StatusBadRequest, "invalid request payload")
+		RespondErrorJSON(w, r, http.StatusBadRequest, ErrInvalidJson.Error(), "Invalid JSON format", nil)
 		return
 	}
 
 	// Get Current userClaim form request context
 	claims := GetUserClaims(r.Context())
 	if claims == nil {
-		RespondError(w, http.StatusUnauthorized, "unauthorized")
+		RespondErrorJSON(w, r, http.StatusUnauthorized, ErrAuthFailed.Error(), "user claims not found in context", nil)
 		return
 	}
 
 	err := h.svc.PlaceBid(r.Context(), productId, claims.UserID, req.BidAmount)
 	if err != nil {
-		RespondError(w, http.StatusInternalServerError, err.Error())
+		slog.Error("[DB] failed to create bid ->", "product_id", productId, "error", err)
+		RespondErrorJSON(w, r, http.StatusInternalServerError, ErrBidCreateFailed.Error(), "failed to create bid", nil)
 		return
 	}
 
-	resp := map[string]any{
-		"message": "Bid placed successfully",
-	}
-	RespondJson(w, http.StatusOK, resp)
+	RespondSuccessJSON(w, r, http.StatusOK, "Bid placed successfully", "")
 }
 
 // ProductsBySellerID godoc
@@ -289,11 +333,11 @@ func (h *ProductHandler) PlaceBid(w http.ResponseWriter, r *http.Request) {
 func (h *ProductHandler) ProductsBySellerID(w http.ResponseWriter, r *http.Request) {
 	// If seller id is not given in the URL params, then set the seller id to the current user id
 	var sellerId string
-	sellerId = chi.URLParam(r, "sellerId")
+	sellerId = chi.URLParam(r, sellerParamKey)
 	if sellerId == "" {
 		claims := GetUserClaims(r.Context())
 		if claims == nil {
-			RespondError(w, http.StatusUnauthorized, "unauthorized")
+			RespondErrorJSON(w, r, http.StatusUnauthorized, ErrAuthFailed.Error(), "user claims not found in context", nil)
 			return
 		}
 		sellerId = claims.UserID.String()
@@ -313,12 +357,13 @@ func (h *ProductHandler) ProductsBySellerID(w http.ResponseWriter, r *http.Reque
 
 	products, err := h.svc.GetProductsBySellerID(r.Context(), sellerId, limit, offset)
 	if err != nil {
-		RespondError(w, http.StatusInternalServerError, err.Error())
+		slog.Error("[DB] failed to found products -> ", "seller_id", sellerId, "error", err)
+		RespondErrorJSON(w, r, http.StatusInternalServerError, ErrDb.Error(), "failed to retrieve products", nil)
 		return
 	}
 
 	resp := map[string]any{
 		"products": products,
 	}
-	RespondJson(w, http.StatusOK, resp)
+	RespondSuccessJSON(w, r, http.StatusOK, "products fetched successfully", resp)
 }

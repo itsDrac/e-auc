@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
-	"errors"
+	"database/sql"
 
 	"github.com/google/uuid"
 	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/internal/storage"
 )
+
+var bucketName = "product-images"
 
 type ProductServicer interface {
 	AddProduct(context.Context, db.Product) (uuid.UUID, error)
@@ -48,8 +50,7 @@ func (ps *ProductService) AddProduct(ctx context.Context, p db.Product) (uuid.UU
 }
 
 func (ps *ProductService) UploadProductImage(ctx context.Context, filename string, data []byte) (string, error) {
-	bucket := "product-images"
-	info, err := ps.storage.SaveImage(bucket, filename, data)
+	info, err := ps.storage.SaveImage(bucketName, filename, data)
 	if err != nil {
 		return "", err
 	}
@@ -66,11 +67,11 @@ func (ps *ProductService) GetProductUrls(ctx context.Context, productId string) 
 		return nil, err
 	}
 	if imagekeys == nil {
-		return nil, errors.New("product not found")
+		return nil, ErrUrlsNotFound
 	}
 	urls := []string{}
 	for _, imgKey := range imagekeys {
-		url, err := ps.storage.GetFileUrl("product-images", imgKey)
+		url, err := ps.storage.GetFileUrl(bucketName, imgKey)
 		if err != nil {
 			return nil, err
 		}
@@ -86,6 +87,9 @@ func (ps *ProductService) GetProductByID(ctx context.Context, productId string) 
 	}
 	product, err := ps.db.GetProductByID(ctx, productUUID)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrProductNotFound
+		}
 		return nil, err
 	}
 	return &product, nil
@@ -102,10 +106,10 @@ func (ps *ProductService) PlaceBid(ctx context.Context, productId string, bidder
 		return err
 	}
 	if product.SellerID == bidderId {
-		return errors.New("seller cannot bid on their own product")
+		return ErrSelfBidding
 	}
 	if bidAmount <= product.CurrentPrice {
-		return errors.New("bid amount must be greater than current price")
+		return ErrInsufficientBid
 	}
 	// TODO: Add code to check for seller threshold on bidding of its products.
 	// TODO: If the bidding amount is higher than the threshold, notify the seller via email.
@@ -133,6 +137,9 @@ func (ps *ProductService) GetProductsBySellerID(ctx context.Context, sellerId st
 	products, err := ps.db.GetProductsBySellerID(ctx, args)
 	if err != nil {
 		return nil, err
+	}
+	if products == nil {
+		products = []db.Product{}
 	}
 	return products, nil
 }

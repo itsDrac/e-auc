@@ -116,7 +116,7 @@ func (h *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 				})
 			}
 		}
-		RespondErrorJSON(w, r, http.StatusBadRequest, "VALIDATION_FAILED", "Input validation failed", details)
+		RespondErrorJSON(w, r, http.StatusBadRequest, ErrInvalidRequest.Error(), "Input validation failed", details)
 		return
 	}
 

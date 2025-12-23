@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/itsDrac/e-auc/internal/handlers"
 	"github.com/itsDrac/e-auc/internal/service"
 	"github.com/itsDrac/e-auc/pkg/config"
 )
@@ -16,6 +17,7 @@ func AuthMiddleware(s service.AuthServicer) func(http.Handler) http.Handler {
 			parts := strings.Split(authHeader, " ")
 
 			if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+				handlers.RespondErrorJSON(w, r, http.StatusUnauthorized, handlers.ErrMissingToken.Error(), "Missing token in the Authorization header", nil)
 				http.Error(w, "Unauthorized: Bearer token required", http.StatusUnauthorized)
 				return
 			}
@@ -23,7 +25,7 @@ func AuthMiddleware(s service.AuthServicer) func(http.Handler) http.Handler {
 
 			claims, err := s.ValidateAccessToken(accessTokenString)
 			if err != nil {
-				http.Error(w, "Invalid or revoked token", http.StatusUnauthorized)
+				handlers.RespondErrorJSON(w, r, http.StatusUnauthorized, handlers.ErrToken.Error(), "Token is either revoked or invalid.", nil)
 				return
 			}
 
