@@ -1,4 +1,4 @@
-package server
+package handlers
 
 import (
 	"encoding/json"
@@ -12,7 +12,19 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	db "github.com/itsDrac/e-auc/internal/database"
+	"github.com/itsDrac/e-auc/internal/model"
+	"github.com/itsDrac/e-auc/internal/service"
 )
+
+type ProductHandler struct {
+	svc service.ProductServicer
+}
+
+func NewProductHandler(sevc service.ProductServicer) (*ProductHandler, error) {
+	return &ProductHandler{
+		svc: sevc,
+	}, nil
+}
 
 // CreateProduct godoc
 //
@@ -26,8 +38,8 @@ import (
 //	@Failure		400		{object}	map[string]any
 //	@Failure		401		{object}	map[string]any
 //	@Router			/products [post]
-func (s *Server) CreateProduct(w http.ResponseWriter, r *http.Request) {
-	var req CreateProductRequest
+func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
+	var req model.CreateProductRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		RespondError(w, http.StatusBadRequest, "invalid request payload")
 		return
@@ -56,7 +68,7 @@ func (s *Server) CreateProduct(w http.ResponseWriter, r *http.Request) {
 		CurrentPrice: req.CurrentPrice,
 	}
 
-	productId, err := s.Services.ProductService.AddProduct(r.Context(), product)
+	productId, err := h.svc.AddProduct(r.Context(), product)
 	if err != nil {
 		RespondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -80,7 +92,7 @@ func (s *Server) CreateProduct(w http.ResponseWriter, r *http.Request) {
 //	@Failure		400		{object}	map[string]any
 //	@Failure		401		{object}	map[string]any
 //	@Router			/products/upload-images [post]
-func (s *Server) UploadImages(w http.ResponseWriter, r *http.Request) {
+func (h *ProductHandler) UploadImages(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 50<<20) // Limit request body to 50MB
 	// Parse the multipart form
 	err := r.ParseMultipartForm(10 << 20) // 10MB
@@ -131,7 +143,7 @@ func (s *Server) UploadImages(w http.ResponseWriter, r *http.Request) {
 		uniqueFilename := uuid.New().String() + ext
 		fmt.Println("Generated unique filename:", uniqueFilename)
 		// Upload to storage service
-		imageURL, err := s.Services.ProductService.UploadProductImage(r.Context(), uniqueFilename, fileData)
+		imageURL, err := h.svc.UploadProductImage(r.Context(), uniqueFilename, fileData)
 		if err != nil {
 			slog.Error("Error on uploading image", "err:", err.Error())
 			RespondError(w, http.StatusInternalServerError, "failed to upload image")
@@ -163,14 +175,14 @@ func (s *Server) UploadImages(w http.ResponseWriter, r *http.Request) {
 //	@Failure		400			{object}	map[string]any
 //	@Failure		500			{object}	map[string]any
 //	@Router			/products/{productId}/images [get]
-func (s *Server) GetProductImageUrls(w http.ResponseWriter, r *http.Request) {
+func (h *ProductHandler) GetProductImageUrls(w http.ResponseWriter, r *http.Request) {
 	productId := chi.URLParam(r, "productId")
 	if productId == "" {
 		RespondError(w, http.StatusBadRequest, "product ID is required")
 		return
 	}
 
-	imageUrls, err := s.Services.ProductService.GetProductUrls(r.Context(), productId)
+	imageUrls, err := h.svc.GetProductUrls(r.Context(), productId)
 	if err != nil {
 		RespondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -194,14 +206,14 @@ func (s *Server) GetProductImageUrls(w http.ResponseWriter, r *http.Request) {
 //	@Failure		400			{object}	map[string]any
 //	@Failure		500			{object}	map[string]any
 //	@Router			/products/{productId} [get]
-func (s *Server) GetProductByID(w http.ResponseWriter, r *http.Request) {
+func (h *ProductHandler) GetProductByID(w http.ResponseWriter, r *http.Request) {
 	productId := chi.URLParam(r, "productId")
 	if productId == "" {
 		RespondError(w, http.StatusBadRequest, "product ID is required")
 		return
 	}
 
-	product, err := s.Services.ProductService.GetProductByID(r.Context(), productId)
+	product, err := h.svc.GetProductByID(r.Context(), productId)
 	if err != nil {
 		RespondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -227,14 +239,14 @@ func (s *Server) GetProductByID(w http.ResponseWriter, r *http.Request) {
 //	@Failure		401			{object}	map[string]any
 //	@Failure		500			{object}	map[string]any
 //	@Router			/products/{productId}/bid [patch]
-func (s *Server) PlaceBid(w http.ResponseWriter, r *http.Request) {
+func (h *ProductHandler) PlaceBid(w http.ResponseWriter, r *http.Request) {
 	productId := chi.URLParam(r, "productId")
 	if productId == "" {
 		RespondError(w, http.StatusBadRequest, "product ID is required")
 		return
 	}
 
-	var req PlaceBidRequest
+	var req model.PlaceBidRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		RespondError(w, http.StatusBadRequest, "invalid request payload")
 		return
@@ -247,7 +259,7 @@ func (s *Server) PlaceBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := s.Services.ProductService.PlaceBid(r.Context(), productId, claims.UserID, req.BidAmount)
+	err := h.svc.PlaceBid(r.Context(), productId, claims.UserID, req.BidAmount)
 	if err != nil {
 		RespondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -274,7 +286,7 @@ func (s *Server) PlaceBid(w http.ResponseWriter, r *http.Request) {
 //	@Failure		401			{object}	map[string]any
 //	@Failure		500			{object}	map[string]any
 //	@Router			/products/{sellerId} [get]
-func (s *Server) ProductsBySellerID(w http.ResponseWriter, r *http.Request) {
+func (h *ProductHandler) ProductsBySellerID(w http.ResponseWriter, r *http.Request) {
 	// If seller id is not given in the URL params, then set the seller id to the current user id
 	var sellerId string
 	sellerId = chi.URLParam(r, "sellerId")
@@ -299,7 +311,7 @@ func (s *Server) ProductsBySellerID(w http.ResponseWriter, r *http.Request) {
 		fmt.Sscanf(offsetParam, "%d", &offset)
 	}
 
-	products, err := s.Services.ProductService.GetProductsBySellerID(r.Context(), sellerId, limit, offset)
+	products, err := h.svc.GetProductsBySellerID(r.Context(), sellerId, limit, offset)
 	if err != nil {
 		RespondError(w, http.StatusInternalServerError, err.Error())
 		return

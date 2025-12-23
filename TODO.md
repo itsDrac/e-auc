@@ -7,7 +7,7 @@
     - [ ] Create endpoint for user to bid on product.
 
 # Cache
-    - [ ] Add Service dependency for redis.
+    - [X] Add Service dependency for redis.
 
 # User
     - [ ] Add user configration such as threshold, or email notificatin toggle or 
