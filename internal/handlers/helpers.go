@@ -58,10 +58,15 @@ func GetUserClaims(ctx context.Context) *config.UserClaims {
 }
 
 func RespondSuccessJSON[T any](w http.ResponseWriter, r *http.Request, status int, message string, data T) {
+
+	// fetch request ID , if not found generate new UUID
 	reqID := r.Header.Get(requestIDKey)
 	if reqID == "" {
 		reqID = uuid.NewString()
 	}
+
+	// This ensures the client gets the ID whether they sent it or we created it.
+	w.Header().Set(requestIDKey, reqID)
 
 	payload := model.APIResponse[T]{
 		Status:  "success",
@@ -77,10 +82,14 @@ func RespondSuccessJSON[T any](w http.ResponseWriter, r *http.Request, status in
 }
 
 func RespondErrorJSON(w http.ResponseWriter, r *http.Request, status int, code string, message string, details []model.ErrorDetails) {
+	// fetch request ID , if not found generate new UUID
 	reqID := r.Header.Get(requestIDKey)
 	if reqID == "" {
 		reqID = uuid.NewString()
 	}
+	// This ensures the client gets the ID whether they sent it or we created it.
+	w.Header().Set(requestIDKey, reqID)
+
 	payload := model.APIResponse[any]{
 		Status: "error",
 		Metadata: model.Metadata{

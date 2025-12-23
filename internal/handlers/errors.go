@@ -22,6 +22,7 @@ var (
 
 	// user error code
 	ErrUserNotFound = errors.New("USER_NOT_FOUND")
+	ErrUserExists   = errors.New("USER_ALREADY_EXISTS")
 
 	// bid error code
 	ErrBidLow          = errors.New("BID_TOO_LOW")

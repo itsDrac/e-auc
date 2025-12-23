@@ -61,7 +61,7 @@ func (h *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 				})
 			}
 		}
-		RespondErrorJSON(w, r, http.StatusBadRequest, "VALIDATION_FAILED", "Input validation failed", details)
+		RespondErrorJSON(w, r, http.StatusBadRequest, ErrInvalidRequest.Error(), "Input validation failed", details)
 		return
 	}
 
@@ -74,12 +74,12 @@ func (h *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	userId, err := h.authService.AddUser(r.Context(), user)
 	if err != nil {
-		if err.Error() == service.ErrUserExists.Error() {
-			RespondErrorJSON(w, r, http.StatusConflict, "USER_EXISTS", "user already exists with same email", nil)
+		if errors.Is(err, service.ErrUserExists) {
+			RespondErrorJSON(w, r, http.StatusConflict, ErrUserExists.Error(), "user already exists with same email and username", nil)
 			return
 		}
-		slog.Error("Internal Error", "error", err.Error())
-		RespondErrorJSON(w, r, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "Something went wrong", nil)
+		slog.Error("[Auth Service] Internal Server Error ->", "error", err.Error())
+		RespondErrorJSON(w, r, http.StatusInternalServerError, ErrInternalServer.Error(), "Something went wrong", nil)
 		return
 	}
 	resp := map[string]any{
@@ -189,7 +189,7 @@ func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 	claims, err := h.authService.ValidateRefreshToken(tokens.RefreshToken)
 	if err != nil {
-		RespondErrorJSON(w, r, http.StatusInternalServerError, ErrToken.Error(), "Error validating new token", nil)
+		RespondErrorJSON(w, r, http.StatusInternalServerError, ErrToken.Error(), "failed to validate new token", nil)
 		return
 	}
 	setRefreshTokenCookie(w, tokens.RefreshToken, claims.ExpiresAt.Time)
@@ -198,7 +198,7 @@ func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		"access_token": tokens.AccessToken,
 	}
 
-	RespondSuccessJSON(w, r, http.StatusOK, "token refreshed successfully", resp)
+	RespondSuccessJSON(w, r, http.StatusOK, "token refreshed", resp)
 }
 
 // LogoutUser godoc
