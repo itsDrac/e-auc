@@ -25,7 +25,7 @@ func NewUserService(db db.Querier) (*UserService, error) {
 
 func (us *UserService) GetUserByID(ctx context.Context, id string) (db.User, error) {
 	if id == "" {
-		return db.User{}, fmt.Errorf("id is empty")
+		return db.User{}, ErrIDMissing
 	}
 	userId, err := uuid.Parse(id)
 	if err != nil {
@@ -34,7 +34,7 @@ func (us *UserService) GetUserByID(ctx context.Context, id string) (db.User, err
 	user, err := us.db.GetUserByID(ctx, userId)
 	if err != nil {
 		slog.Error("error while getting user data from ID", "error", err.Error())
-		return db.User{}, fmt.Errorf("user not found")
+		return db.User{}, ErrUserNotFound
 	}
 
 	return user, nil

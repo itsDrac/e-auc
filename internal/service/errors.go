@@ -3,7 +3,9 @@ package service
 import "errors"
 
 var (
-	ErrUserExists = errors.New("USER_EXISTS")
+	ErrUserExists   = errors.New("user already exists")
+	ErrUserNotFound = errors.New("user not found")
+	ErrIDMissing    = errors.New("user id is missing")
 
 	// products
 	ErrSelfBidding     = errors.New("seller cannot bid on their own product")

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -265,7 +266,12 @@ func (h *UserHandler) Profile(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.userService.GetUserByID(r.Context(), userID.String())
 	if err != nil {
-		RespondErrorJSON(w, r, http.StatusForbidden, ErrUserNotFound.Error(), "user profile could not be retrieved", nil)
+		if errors.Is(err, service.ErrUserNotFound) {
+			RespondErrorJSON(w, r, http.StatusNotFound, ErrUserNotFound.Error(), "user profile could not be retrieved", nil)
+			return
+		}
+		slog.Error("[DB] failed to fetch user details", "userID", userID, "error", err)
+		RespondErrorJSON(w, r, http.StatusInternalServerError, ErrDb.Error(), "user profile could not be retrieved", nil)
 		return
 	}
 
