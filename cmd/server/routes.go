@@ -59,18 +59,17 @@ func (s *Server) UserRoutes(router chi.Router) {
 // ProductRoutes registers product endpoints (protected)
 func (s *Server) ProductRoutes(router chi.Router) {
 	var productHandler = s.Dependencies.ProductHandler
-
-	router.Group(func(r chi.Router) {
-
-		r.Use(middleware.AuthMiddleware(s.Dependencies.Services.AuthService))
-
-		r.Route("/products", func(r chi.Router) {
-			r.Post("/upload-images", productHandler.UploadImages)
-			r.Post("/", productHandler.CreateProduct)
-			r.Patch("/{productId}/bid", productHandler.PlaceBid)
-			r.Get("/{sellerId}", productHandler.ProductsBySellerID)
+		// Not protected routes
+		router.Route("/products", func(r chi.Router) {
+			r.Get("/{productId}", productHandler.GetProductByID)
+			r.Group(func(r chi.Router) {
+				r.Use(middleware.AuthMiddleware(s.Dependencies.Services.AuthService))
+				r.Post("/upload-images", productHandler.UploadImages)
+				r.Post("/", productHandler.CreateProduct)
+				r.Patch("/{productId}/bid", productHandler.PlaceBid)
+				r.Get("/{sellerId}", productHandler.ProductsBySellerID)
+			})
 		})
-	})
 }
 
 // Healthcheck godoc

@@ -9,7 +9,7 @@ import (
 	"github.com/itsDrac/e-auc/internal/storage"
 )
 
-var bucketName = "product-images"
+const bucketName = "product-images"
 
 type ProductServicer interface {
 	AddProduct(context.Context, db.Product) (uuid.UUID, error)
