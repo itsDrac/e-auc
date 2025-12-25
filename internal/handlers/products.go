@@ -307,6 +307,15 @@ func (h *ProductHandler) PlaceBid(w http.ResponseWriter, r *http.Request) {
 
 	err := h.svc.PlaceBid(r.Context(), productId, claims.UserID, req.BidAmount)
 	if err != nil {
+		if errors.Is(err, service.ErrSelfBidding) { // Make sure this error is exported in service package
+			RespondErrorJSON(w, r, http.StatusForbidden, ErrSelfBidding.Error(), "You cannot bid on your own product", nil)
+			return
+		}
+		// FIX: Add check for low bid if not already there
+		if errors.Is(err, service.ErrInsufficientBid) {
+			RespondErrorJSON(w, r, http.StatusBadRequest, ErrBidLow.Error(), "Bid must be higher than current price", nil)
+			return
+		}
 		slog.Error("[DB] failed to create bid ->", "product_id", productId, "error", err)
 		RespondErrorJSON(w, r, http.StatusInternalServerError, ErrBidCreateFailed.Error(), "failed to create bid", nil)
 		return
