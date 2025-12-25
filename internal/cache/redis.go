@@ -13,12 +13,18 @@ var (
 	ErrInvalidTTL = errors.New("cache: ttl must be > 0")
 )
 
-type Cache interface {
+const (
+	TempImageListKey = "temp_image_names"
+)
+
+type Cacher interface {
 	Get(ctx context.Context, key string) (string, bool, error)
 	Set(ctx context.Context, key, val string, ttl time.Duration) error
 	Delete(ctx context.Context, key string) error
 	Ping(ctx context.Context) error
 	Close() error
+	AddImageNameToTempList(ctx context.Context, imageName string) error
+	RemoveImageNameFromTempList(ctx context.Context, imageName string) error
 }
 
 type RedisCache struct {
@@ -88,4 +94,12 @@ func (r *RedisCache) Close() error {
 
 func (r *RedisCache) Ping(ctx context.Context) error {
 	return r.client.Ping(ctx).Err()
+}
+
+func (r *RedisCache) AddImageNameToTempList(ctx context.Context, imageName string) error {
+	return r.client.LPush(ctx, TempImageListKey, imageName).Err()
+}
+
+func (r *RedisCache) RemoveImageNameFromTempList(ctx context.Context, imageName string) error {
+	return r.client.LRem(ctx, TempImageListKey, 0, imageName).Err()
 }

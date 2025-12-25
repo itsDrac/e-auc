@@ -19,9 +19,14 @@
     - [X] Add docs for health
     - [X] Add docs for Create, Login and Profile user.
         
+# Known Issue
+    - [ ] When get product image is called it shares the url which contains localhost, I dont think frontend will be able to load image using localhost. therefore we'll need to change the localhost to domain thats pointing to storage service (Or some other work around.)
+    - [ ] We'll need to chagen the url params to query string params. 
+
 
 # Discussion.
     - Should we have cache dependency in
-        [ ] Server level.
+        [X] Server level.
         [ ] Service level.
         [ ] Both. (Majorly read only in server level and read and wright in service level).
+    - [ ] How can we use cache in authentication.

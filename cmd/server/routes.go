@@ -61,13 +61,14 @@ func (s *Server) ProductRoutes(router chi.Router) {
 	var productHandler = s.Dependencies.ProductHandler
 		// Not protected routes
 		router.Route("/products", func(r chi.Router) {
+			r.Get("/images", productHandler.GetProductImageUrls)
 			r.Get("/{productId}", productHandler.GetProductByID)
 			r.Group(func(r chi.Router) {
 				r.Use(middleware.AuthMiddleware(s.Dependencies.Services.AuthService))
 				r.Post("/upload-images", productHandler.UploadImages)
 				r.Post("/", productHandler.CreateProduct)
 				r.Patch("/{productId}/bid", productHandler.PlaceBid)
-				r.Get("/{sellerId}", productHandler.ProductsBySellerID)
+				r.Get("/seller/{sellerId}", productHandler.ProductsBySellerID)
 			})
 		})
 }

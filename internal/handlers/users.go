@@ -11,6 +11,7 @@ import (
 
 	// "github.com/itsDrac/e-auc/internal/types"
 	"github.com/go-playground/validator/v10"
+	"github.com/itsDrac/e-auc/internal/cache"
 	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/internal/model"
 	"github.com/itsDrac/e-auc/internal/service"
@@ -23,12 +24,14 @@ var validate = valid.GetValidator()
 type UserHandler struct {
 	userService service.UserServicer
 	authService service.AuthServicer
+	cache 	 cache.Cacher
 }
 
-func NewUserHandler(userSvc service.UserServicer, authSvc service.AuthServicer) (*UserHandler, error) {
+func NewUserHandler(userSvc service.UserServicer, authSvc service.AuthServicer, c cache.Cacher) (*UserHandler, error) {
 	return &UserHandler{
 		userService: userSvc,
 		authService: authSvc,
+		cache:       c,
 	}, nil
 }
 

@@ -16,7 +16,7 @@ import (
 type Dependencies struct {
 	Services       *service.Services
 	Conn           *pgx.Conn
-	Cache          *cache.RedisCache
+	Cache          cache.Cacher
 	UserHandler    *handlers.UserHandler
 	ProductHandler *handlers.ProductHandler
 }
@@ -44,18 +44,6 @@ func NewDependencies(ctx context.Context, dbDsn string) (*Dependencies, error) {
 		return nil, err
 	}
 
-	userHandler, err := handlers.NewUserHandler(services.UserService, services.AuthService)
-	if err != nil {
-		slog.Error("[User Handler] failed to initialized -> ", "error", err.Error())
-		return nil, err
-	}
-
-	productHandler, err := handlers.NewProductHandler(services.ProductService)
-	if err != nil {
-		slog.Error("[Product Handler] failed to initialized -> ", "error", err.Error())
-		return nil, err
-	}
-
 	cache, err := cache.NewRedisClient(ctx)
 	if err != nil {
 		slog.Error("[Cache] failed to initialized ->", "error", err.Error())
@@ -67,6 +55,20 @@ func NewDependencies(ctx context.Context, dbDsn string) (*Dependencies, error) {
 	} else {
 		slog.Info("[Cache] connected")
 	}
+
+	userHandler, err := handlers.NewUserHandler(services.UserService, services.AuthService, cache)
+	if err != nil {
+		slog.Error("[User Handler] failed to initialized -> ", "error", err.Error())
+		return nil, err
+	}
+
+	productHandler, err := handlers.NewProductHandler(services.ProductService, cache)
+	if err != nil {
+		slog.Error("[Product Handler] failed to initialized -> ", "error", err.Error())
+		return nil, err
+	}
+
+	
 
 	return &Dependencies{
 		Services:       services,
