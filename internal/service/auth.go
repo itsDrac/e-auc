@@ -43,7 +43,7 @@ func (as *AuthService) AddUser(ctx context.Context, u db.User) (uuid.UUID, error
 	exists, _ := as.db.GetUserByEmail(ctx, u.Email)
 
 	if exists.ID != uuid.Nil {
-		return uuid.Nil, fmt.Errorf("user already exists with email: %s", u.Email)
+		return uuid.Nil, ErrUserExists
 	}
 
 	hash, err := utils.HashPassword(u.Password)

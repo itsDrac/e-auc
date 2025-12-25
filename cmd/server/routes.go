@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chiMiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/itsDrac/e-auc/internal/middleware"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
@@ -14,42 +15,61 @@ func (s *Server) routes() *chi.Mux {
 	mux := chi.NewMux()
 
 	// global middlewares
-	mux.Use(middleware.Logger)
-	mux.Use(middleware.Recoverer)
+	mux.Use(chiMiddleware.Logger)
+	mux.Use(chiMiddleware.Recoverer)
+
+	// swagger documentation
 	mux.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("http://localhost:8000/swagger/doc.json"), // The url pointing to API definition
 	))
 
+	// api v1 routes
 	mux.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", healthCheck)
-
-		r.Route("/auth", func(r chi.Router) {
-			r.Post("/register", s.RegisterUser)
-			r.Post("/login", s.LoginUser)
-			r.Post("/refresh", s.RefreshToken)
-			r.Post("/logout", s.LogoutUser)
-		})
-
-		r.Group(func(r chi.Router) {
-			r.Use(s.AuthMiddleware())
-			r.Route("/users", func(r chi.Router) {
-				r.Get("/me", s.Profile)
-			})
-			r.Route("/products", func(r chi.Router) {
-				r.Post("/upload-images", s.UploadImages)
-				r.Post("/", s.CreateProduct)
-				r.Patch("/{productId}/bid", s.PlaceBid)
-				r.Get("/{sellerId}", s.ProductsBySellerID)
-			})
-		})
-		// r.Route("/products", func(r chi.Router) {
-		// 			r.Get("/{productId}", s.GetProductByID)
-		// 			r.Get("/{productId}/images", s.GetProductImageUrls)
-
-		// 		})
+		s.AuthRoutes(r)
+		s.UserRoutes(r)
+		s.ProductRoutes(r)
 	})
 
 	return mux
+}
+
+// AuthRoutes registers authentication endpoints (public)
+func (s *Server) AuthRoutes(router chi.Router) {
+	userHandler := s.Dependencies.UserHandler
+	router.Route("/auth", func(r chi.Router) {
+		r.Post("/register", userHandler.RegisterUser)
+		r.Post("/login", userHandler.LoginUser)
+		r.Post("/refresh", userHandler.RefreshToken)
+		r.Post("/logout", userHandler.LogoutUser)
+	})
+}
+
+// UserRoutes registers user endpoints (protected)
+func (s *Server) UserRoutes(router chi.Router) {
+	userHandler := s.Dependencies.UserHandler
+	router.Group(func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware(s.Dependencies.Services.AuthService))
+		r.Route("/users", func(r chi.Router) {
+			r.Get("/me", userHandler.Profile)
+		})
+	})
+}
+
+// ProductRoutes registers product endpoints (protected)
+func (s *Server) ProductRoutes(router chi.Router) {
+	var productHandler = s.Dependencies.ProductHandler
+		// Not protected routes
+		router.Route("/products", func(r chi.Router) {
+			r.Get("/{productId}", productHandler.GetProductByID)
+			r.Group(func(r chi.Router) {
+				r.Use(middleware.AuthMiddleware(s.Dependencies.Services.AuthService))
+				r.Post("/upload-images", productHandler.UploadImages)
+				r.Post("/", productHandler.CreateProduct)
+				r.Patch("/{productId}/bid", productHandler.PlaceBid)
+				r.Get("/{sellerId}", productHandler.ProductsBySellerID)
+			})
+		})
 }
 
 // Healthcheck godoc

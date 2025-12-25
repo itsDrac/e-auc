@@ -10,29 +10,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/itsDrac/e-auc/internal/cache"
-	db "github.com/itsDrac/e-auc/internal/database"
-	"github.com/itsDrac/e-auc/internal/service"
-	"github.com/itsDrac/e-auc/internal/storage"
+	"github.com/itsDrac/e-auc/internal/dependency"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/itsDrac/e-auc/pkg/utils"
-	"github.com/jackc/pgx/v5"
 	_ "github.com/joho/godotenv/autoload"
 )
 
 type Server struct {
-	HTTPServer *http.Server
-	Services   *service.Services
-	conn       *pgx.Conn
-	cache      *cache.RedisCache
+	HTTPServer   *http.Server
+	Dependencies *dependency.Dependencies
 }
 
-var validate *validator.Validate
-
 func New() *Server {
-	// log := logger.NewLogger()
-	validate = validator.New(validator.WithRequiredStructEnabled())
 	host := utils.GetEnv("SERVER_HOST", "0.0.0.0")
 	port := utils.GetEnv("SERVER_PORT", "8080")
 	dbDsn := utils.GetEnv("DB_DSN", "")
@@ -41,43 +30,14 @@ func New() *Server {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	conn, err := pgx.Connect(ctx, dbDsn)
+	dependencies, err := dependency.NewDependencies(ctx, dbDsn)
 	if err != nil {
-		slog.Error("[DB] connection failed -> ", "error", err.Error())
+		slog.Error("[Dependency] failed to initialize -> ", "error", err.Error())
 		panic(err)
-	}
-
-	querier := db.New(conn)
-	// userRepo := repository.NewUserrepo(querier)
-
-	storage, err := storage.NewMinioStorage()
-	if err != nil {
-		slog.Error("[Storage] failed to initialize -> ", "error", err.Error())
-		panic(err)
-	}
-
-	services, err := service.NewServices(querier, storage)
-	if err != nil {
-		slog.Error("[Service] failed to initialized -> ", "error", err.Error())
-		panic(err)
-	}
-
-	cache, err := cache.NewRedisClient(ctx)
-	if err != nil {
-		slog.Error("[Cache] failed to initialized ->", "error", err.Error())
-		panic(err)
-	}
-
-	if err := cache.Ping(ctx); err != nil {
-		slog.Error("[Cache] Unable to ping ->", "error", err.Error())
-	} else {
-		slog.Info("[Cache] connected")
 	}
 
 	serv := &Server{
-		Services: services,
-		conn:     conn,
-		cache:    cache,
+		Dependencies: dependencies,
 	}
 
 	// builds router
@@ -120,18 +80,17 @@ func (s *Server) Run() error {
 	}
 
 	// close cache
-	if err := s.cache.Close(); err != nil {
+	if err := s.Dependencies.Cache.Close(); err != nil {
 		slog.Error("[Cache] close failed ->", "error", err.Error())
 		return err
 	}
 
 	// close db
-	if err := s.conn.Close(shutCtx); err != nil {
+	if err := s.Dependencies.Conn.Close(shutCtx); err != nil {
 		slog.Error("[DB] close failed -> ", "error", err.Error())
 		return err
 	}
 
 	slog.Info("[SERVER] shutdown complete.")
-
 	return nil
 }
