@@ -16,6 +16,7 @@ import (
 	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/internal/model"
 	"github.com/itsDrac/e-auc/internal/service"
+	"github.com/itsDrac/e-auc/internal/cache"
 )
 
 const (
@@ -25,11 +26,13 @@ const (
 
 type ProductHandler struct {
 	svc service.ProductServicer
+	cache cache.Cacher
 }
 
-func NewProductHandler(sevc service.ProductServicer) (*ProductHandler, error) {
+func NewProductHandler(sevc service.ProductServicer, c cache.Cacher) (*ProductHandler, error) {
 	return &ProductHandler{
 		svc: sevc,
+		cache: c,
 	}, nil
 }
 
@@ -97,6 +100,11 @@ func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 		RespondErrorJSON(w, r, http.StatusInternalServerError, ErrInternalServer.Error(), "Internal server error", nil)
 		return
 	}
+	// remove images from temp list after product creation
+	for _, imgName := range req.Images {
+		// AddImageNameToTempList
+		h.cache.RemoveImageNameFromTempList(r.Context(), imgName)
+	}
 	resp := map[string]any{
 		"product_id": productId.String(),
 	}
@@ -135,7 +143,7 @@ func (h *ProductHandler) UploadImages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var imageURLs []string
+	var imageNames []string
 	for _, fileHeader := range files {
 		// Use fileHeader.Size to check file size if needed
 		if fileHeader.Size > 10<<20 { // 10MB limit per file
@@ -175,7 +183,7 @@ func (h *ProductHandler) UploadImages(w http.ResponseWriter, r *http.Request) {
 		uniqueFilename := uuid.New().String() + ext
 		fmt.Println("Generated unique filename:", uniqueFilename)
 		// Upload to storage service
-		imageURL, err := h.svc.UploadProductImage(r.Context(), uniqueFilename, fileData)
+		imageName, err := h.svc.UploadProductImage(r.Context(), uniqueFilename, fileData)
 		if err != nil {
 			slog.Error("Error on uploading image", "err:", err.Error())
 			RespondErrorJSON(w, r, http.StatusInternalServerError, ErrUploadFailed.Error(), "failed to store image", nil)
@@ -183,13 +191,14 @@ func (h *ProductHandler) UploadImages(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Temporary dummy URL for demonstration
-		imageURLs = append(imageURLs, imageURL)
+		imageNames = append(imageNames, imageName)
+		h.cache.AddImageNameToTempList(r.Context(), imageName)
 
-		slog.Info("Uploaded image", "original_filename", fileHeader.Filename, "unique_filename", uniqueFilename, "url", imageURL)
+		slog.Info("Uploaded image", "original_filename", fileHeader.Filename, "unique_filename", uniqueFilename, "stored_as", imageName)
 	}
 
 	resp := map[string]any{
-		"image_urls": imageURLs,
+		"image_names": imageNames,
 	}
 	RespondSuccessJSON(w, r, http.StatusOK, "Images uploaded successfully", resp)
 }
@@ -207,7 +216,8 @@ func (h *ProductHandler) UploadImages(w http.ResponseWriter, r *http.Request) {
 //	@Failure		500			{object}	map[string]any
 //	@Router			/products/{productId}/images [get]
 func (h *ProductHandler) GetProductImageUrls(w http.ResponseWriter, r *http.Request) {
-	productId := chi.URLParam(r, productParamKey)
+	// Get Product id form query params
+	productId := r.URL.Query().Get(productParamKey)
 	if productId == "" {
 		RespondErrorJSON(w, r, http.StatusBadRequest, ErrMissingParam.Error(), "Product ID is required", nil)
 		return
