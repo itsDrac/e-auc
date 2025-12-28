@@ -1,1 +1,4 @@
 .env
+
+# Test assets - ignore macOS metadata files
+tests/assets/*Zone*
