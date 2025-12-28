@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/internal/storage"
 )
@@ -87,7 +87,7 @@ func (ps *ProductService) GetProductByID(ctx context.Context, productId string) 
 	}
 	product, err := ps.db.GetProductByID(ctx, productUUID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			return nil, ErrProductNotFound
 		}
 		return nil, err
