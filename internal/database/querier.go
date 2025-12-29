@@ -12,13 +12,21 @@ import (
 
 type Querier interface {
 	AddProduct(ctx context.Context, arg AddProductParams) (Product, error)
+	CountBidsByProduct(ctx context.Context, productID uuid.UUID) (int64, error)
+	CreateBid(ctx context.Context, arg CreateBidParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteBid(ctx context.Context, id uuid.UUID) error
+	GetBidsByProductID(ctx context.Context, productID uuid.UUID) ([]Bid, error)
+	GetBidsByUserID(ctx context.Context, userID uuid.UUID) ([]Bid, error)
+	GetLatestBidForProduct(ctx context.Context, productID uuid.UUID) (Bid, error)
 	GetProductByID(ctx context.Context, id uuid.UUID) (Product, error)
 	GetProductImages(ctx context.Context, id uuid.UUID) ([]string, error)
 	GetProductsBySellerID(ctx context.Context, arg GetProductsBySellerIDParams) ([]Product, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
+	GetValidBidsByProductID(ctx context.Context, productID uuid.UUID) ([]Bid, error)
+	InvalidateBid(ctx context.Context, id uuid.UUID) error
 	MarkProductAsSold(ctx context.Context, arg MarkProductAsSoldParams) (Product, error)
 	UpdateProductCurrentPrice(ctx context.Context, arg UpdateProductCurrentPriceParams) error
 	UpdateProductImages(ctx context.Context, arg UpdateProductImagesParams) (Product, error)
