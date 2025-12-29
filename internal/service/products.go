@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/internal/storage"
+	"github.com/jackc/pgx/v5"
 )
 
 const bucketName = "product-images"
@@ -108,19 +108,47 @@ func (ps *ProductService) PlaceBid(ctx context.Context, productId string, bidder
 	if product.SellerID == bidderId {
 		return ErrSelfBidding
 	}
+
+	// TODO: Add check for threshold bidding amount for the product
 	if bidAmount <= product.CurrentPrice {
 		return ErrInsufficientBid
 	}
-	// TODO: Add code to check for seller threshold on bidding of its products.
-	// TODO: If the bidding amount is higher than the threshold, notify the seller via email.
-	// TODO: Also, Don't update the product's CurrentPrice.
-	err = ps.db.UpdateProductCurrentPrice(ctx, db.UpdateProductCurrentPriceParams{
-		ID:           productUUID,
-		CurrentPrice: bidAmount,
+
+	// Check if the last valid bidder is not the current bidder
+	lastBid, err := ps.db.GetLatestBidForProduct(ctx, productUUID)
+	if err != nil && err != pgx.ErrNoRows {
+		return err
+	}
+	if err == nil && lastBid.UserID == bidderId {
+		return ErrConsecutiveBid
+	}
+
+	// Store the bid in bids table
+	err = ps.db.CreateBid(ctx, db.CreateBidParams{
+		ProductID: productUUID,
+		UserID:    bidderId,
+		Price:     bidAmount,
+		Comments:  nil,
 	})
 	if err != nil {
 		return err
 	}
+
+	// TODO: Move this function to a separate worker or use a message queue for better scalability
+	// TODO: Add retry mechanism in case of transient failures
+	// Update product current price in a goroutine
+	go func() {
+		// Use background context to avoid cancellation when original context is done
+		bgCtx := context.Background()
+		_ = ps.db.UpdateProductCurrentPrice(bgCtx, db.UpdateProductCurrentPriceParams{
+			ID:           productUUID,
+			CurrentPrice: bidAmount,
+		})
+		// TODO: Add logging if update fails
+		// TODO: Add code to check for seller threshold on bidding of its products.
+		// TODO: If the bidding amount is higher than the threshold, notify the seller via email.
+	}()
+
 	return nil
 }
 

@@ -4,13 +4,14 @@
         - [ ] Add endpoint to Get(read the product)
             - [X] Add endpoint to get the images linked with a product.
         - [ ] Add endpoint to update the product.
-    - [ ] Create endpoint for user to bid on product.
+    - [X] Create endpoint for user to bid on product.
 
 # Cache
     - [X] Add Service dependency for redis.
+    - [ ] Add function to add current product price and some information in cache. _Information may include last bidder id_
 
 # User
-    - [ ] Add user configration such as threshold, or email notificatin toggle or 
+    - [ ] Add user configration such as threshold, or email notification toggle or 
     - [ ] Add user configration in cache.
     - [ ] On Updaing user configration the configrations should be updated in redis as well.
 
