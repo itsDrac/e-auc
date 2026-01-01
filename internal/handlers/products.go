@@ -334,6 +334,13 @@ func (h *ProductHandler) PlaceBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Publish the new bid amount to Redis channel for real-time updates
+	err = h.cache.UpdateProductPrice(r.Context(), productId, req.BidAmount)
+	if err != nil {
+		slog.Error("Failed to publish price update to Redis", "product_id", productId, "error", err)
+		// Not returning error to user as the bid placement was successful
+	}
+
 	RespondSuccessJSON(w, r, http.StatusOK, "Bid placed successfully", "")
 }
 
@@ -389,4 +396,68 @@ func (h *ProductHandler) ProductsBySellerID(w http.ResponseWriter, r *http.Reque
 		"products": products,
 	}
 	RespondSuccessJSON(w, r, http.StatusOK, "products fetched successfully", resp)
+}
+
+// StreamPriceUpdates godoc
+//
+//	@Summary		Stream Real-Time Price Updates
+//	@Description	Stream real-time price updates for a specific product using Server-Sent Events (SSE)
+//	@Tags			Products
+//	@Produce		text/event-stream
+//	@Security		BearerAuth
+//	@Param			productId	query		string	true	"Product ID"
+//	@Success		200			{string}	string	"Stream of price updates"
+//	@Failure		400			{object}	map[string]any
+//	@Failure		500			{object}	map[string]any
+//	@Router			/products/stream-price [get]
+func (h *ProductHandler) StreamPriceUpdates(w http.ResponseWriter, r *http.Request) {
+	// Implementation for streaming price updates will go here
+	// Get product id from query params
+	productId := r.URL.Query().Get(productParamKey)
+	if productId == "" {
+		RespondErrorJSON(w, r, http.StatusBadRequest, ErrMissingParam.Error(), "Product ID is required", nil)
+		return
+	}
+	// To get real-time price we use redis pub/sub model
+	// We'll use Server-Sent Events (SSE) for this purpose
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	clientGone := r.Context().Done()
+
+	rc := http.NewResponseController(w)
+
+	// Subscribe to Redis channel for price updates of a product
+	sub := h.cache.ProductPriceUpdates(r.Context(), productId)
+	defer sub.Close()
+	if _, err := sub.Receive(r.Context()); err != nil {
+		slog.Error("Failed to subscribe to Redis channel", "error", err)
+		RespondErrorJSON(w, r, http.StatusInternalServerError, ErrInternalServer.Error(), "Failed to subscribe to price updates", nil)
+		return
+	}
+
+	// Listen for messages in a loop
+
+	for {
+		select {
+		case <-clientGone:
+			slog.Info("Client disconnected from price updates stream")
+			return
+		case msg, ok := <-sub.Channel():
+			if !ok {
+				slog.Error("Failed to receive message from Redis channel")
+				return
+			}
+			// Write the message to the response writer in SSE format
+			_, err := fmt.Fprintf(w, "data: %s\n\n", msg.Payload)
+			if err != nil {
+				slog.Error("Error writing to response writer", "error", err)
+				return
+			}
+			rc.Flush()
+		}
+	}
+
+	// To get real-time price we use redis pub/sub model
 }
