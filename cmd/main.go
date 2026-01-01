@@ -18,8 +18,12 @@ import (
 // @contact.email	support.query@e-auc.fun
 // @license.name	MIT
 // @license.url	https://opensource.org/licenses/MIT
-// @host			localhost:8080
+// @host			localhost:8000
 // @BasePath		/api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
 func main() {
 	// Load environment variables from .env file
 	if err := godotenv.Load(); err != nil {

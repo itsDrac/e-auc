@@ -13,10 +13,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/itsDrac/e-auc/internal/cache"
 	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/internal/model"
 	"github.com/itsDrac/e-auc/internal/service"
-	"github.com/itsDrac/e-auc/internal/cache"
 )
 
 const (
@@ -25,13 +25,13 @@ const (
 )
 
 type ProductHandler struct {
-	svc service.ProductServicer
+	svc   service.ProductServicer
 	cache cache.Cacher
 }
 
 func NewProductHandler(sevc service.ProductServicer, c cache.Cacher) (*ProductHandler, error) {
 	return &ProductHandler{
-		svc: sevc,
+		svc:   sevc,
 		cache: c,
 	}, nil
 }
@@ -43,7 +43,8 @@ func NewProductHandler(sevc service.ProductServicer, c cache.Cacher) (*ProductHa
 //	@Tags			Products
 //	@Accept			json
 //	@Produce		json
-//	@Param			product	body		CreateProductRequest	true	"Product details"
+//	@Security		BearerAuth
+//	@Param			product	body		model.CreateProductRequest	true	"Product details"
 //	@Success		201		{object}	map[string]any
 //	@Failure		400		{object}	map[string]any
 //	@Failure		401		{object}	map[string]any
@@ -118,6 +119,7 @@ func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 //	@Tags			Products
 //	@Accept			multipart/form-data
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			images	formData	file	true	"Product images"
 //	@Success		200		{object}	map[string]any
 //	@Failure		400		{object}	map[string]any
@@ -210,11 +212,11 @@ func (h *ProductHandler) UploadImages(w http.ResponseWriter, r *http.Request) {
 //	@Tags			Products
 //	@Accept			json
 //	@Produce		json
-//	@Param			productId	path		string	true	"Product ID"
+//	@Param			productId	query		string	true	"Product ID"
 //	@Success		200			{object}	map[string]any
 //	@Failure		400			{object}	map[string]any
 //	@Failure		500			{object}	map[string]any
-//	@Router			/products/{productId}/images [get]
+//	@Router			/products/images [get]
 func (h *ProductHandler) GetProductImageUrls(w http.ResponseWriter, r *http.Request) {
 	// Get Product id form query params
 	productId := r.URL.Query().Get(productParamKey)
@@ -288,8 +290,9 @@ func (h *ProductHandler) GetProductByID(w http.ResponseWriter, r *http.Request) 
 //	@Tags			Products
 //	@Accept			json
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			productId	path		string			true	"Product ID"
-//	@Param			bid			body		PlaceBidRequest	true	"Bid details"
+//	@Param			bid			body		model.PlaceBidRequest	true	"Bid details"
 //	@Success		200			{object}	map[string]any
 //	@Failure		400			{object}	map[string]any
 //	@Failure		401			{object}	map[string]any
@@ -341,6 +344,7 @@ func (h *ProductHandler) PlaceBid(w http.ResponseWriter, r *http.Request) {
 //	@Tags			Products
 //	@Accept			json
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			sellerId	path		string	false	"Seller ID"
 //	@Param			limit		query		int		false	"Number of products to return"
 //	@Param			offset		query		int		false	"Number of products to skip"

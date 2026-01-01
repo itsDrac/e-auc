@@ -17,7 +17,7 @@ generate-tables:
 
 docs:
 	swag fmt
-	swag init -g ./cmd/api/main.go -o ./docs
+	swag init -g ./cmd/main.go -o ./docs
 
 setup-dev:
 	docker run -d --name postgres-dev -e POSTGRES_PASSWORD=password -e POSTGRES_DB=e-auc -p 5432:5432 postgres:alpine

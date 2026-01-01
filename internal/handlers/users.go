@@ -24,7 +24,7 @@ var validate = valid.GetValidator()
 type UserHandler struct {
 	userService service.UserServicer
 	authService service.AuthServicer
-	cache 	 cache.Cacher
+	cache       cache.Cacher
 }
 
 func NewUserHandler(userSvc service.UserServicer, authSvc service.AuthServicer, c cache.Cacher) (*UserHandler, error) {
@@ -42,7 +42,7 @@ func NewUserHandler(userSvc service.UserServicer, authSvc service.AuthServicer, 
 //	@Tags			Auth
 //	@Accept			json
 //	@Produce		json
-//	@Param			user	body		CreateUserRequest	true	"User registration details"
+//	@Param			user	body		model.CreateUserRequest	true	"User registration details"
 //	@Success		201		{object}	map[string]any
 //	@Failure		400		{object}	map[string]any
 //	@Failure		409		{object}	map[string]any
@@ -98,7 +98,7 @@ func (h *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 //	@Tags			Auth
 //	@Accept			json
 //	@Produce		json
-//	@Param			credentials	body		LoginUserRequest	true	"User login credentials"
+//	@Param			credentials	body		model.LoginUserRequest	true	"User login credentials"
 //	@Success		200			{object}	map[string]any
 //	@Failure		400			{object}	map[string]any
 //	@Failure		401			{object}	map[string]any
@@ -252,8 +252,8 @@ func (h *UserHandler) LogoutUser(w http.ResponseWriter, r *http.Request) {
 //	@Summary		Get User Profile
 //	@Description	Retrieve the profile information of the authenticated user
 //	@Tags			Users
-//	@Requirements	BearerAuth
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Success		200	{object}	map[string]any
 //	@Failure		403	{object}	map[string]any
 //	@Router			/users/me [get]
