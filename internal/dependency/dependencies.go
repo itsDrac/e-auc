@@ -68,8 +68,6 @@ func NewDependencies(ctx context.Context, dbDsn string) (*Dependencies, error) {
 		return nil, err
 	}
 
-	
-
 	return &Dependencies{
 		Services:       services,
 		Conn:           conn,

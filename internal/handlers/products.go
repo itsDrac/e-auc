@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,10 +14,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/itsDrac/e-auc/internal/cache"
 	db "github.com/itsDrac/e-auc/internal/database"
 	"github.com/itsDrac/e-auc/internal/model"
 	"github.com/itsDrac/e-auc/internal/service"
-	"github.com/itsDrac/e-auc/internal/cache"
 )
 
 const (
@@ -25,13 +26,13 @@ const (
 )
 
 type ProductHandler struct {
-	svc service.ProductServicer
+	svc   service.ProductServicer
 	cache cache.Cacher
 }
 
 func NewProductHandler(sevc service.ProductServicer, c cache.Cacher) (*ProductHandler, error) {
 	return &ProductHandler{
-		svc: sevc,
+		svc:   sevc,
 		cache: c,
 	}, nil
 }
@@ -43,7 +44,8 @@ func NewProductHandler(sevc service.ProductServicer, c cache.Cacher) (*ProductHa
 //	@Tags			Products
 //	@Accept			json
 //	@Produce		json
-//	@Param			product	body		CreateProductRequest	true	"Product details"
+//	@Security		BearerAuth
+//	@Param			product	body		model.CreateProductRequest	true	"Product details"
 //	@Success		201		{object}	map[string]any
 //	@Failure		400		{object}	map[string]any
 //	@Failure		401		{object}	map[string]any
@@ -105,6 +107,17 @@ func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 		// AddImageNameToTempList
 		h.cache.RemoveImageNameFromTempList(r.Context(), imgName)
 	}
+	// Add product metadata in redis
+	metadata := map[string]any{
+		"title":         req.Title,
+		"seller_id":     claims.UserID.String(),
+		"min_price":     req.MinPrice,
+		"current_price": req.CurrentPrice,
+	}
+	if err := h.cache.AddProductMetadata(r.Context(), productId.String(), metadata); err != nil {
+		slog.Error("Failed to add product metadata to redis cache", "product_id", productId.String(), "error", err)
+		// Not returning error to user as the product creation was successful
+	} 
 	resp := map[string]any{
 		"product_id": productId.String(),
 	}
@@ -118,6 +131,7 @@ func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 //	@Tags			Products
 //	@Accept			multipart/form-data
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			images	formData	file	true	"Product images"
 //	@Success		200		{object}	map[string]any
 //	@Failure		400		{object}	map[string]any
@@ -210,11 +224,11 @@ func (h *ProductHandler) UploadImages(w http.ResponseWriter, r *http.Request) {
 //	@Tags			Products
 //	@Accept			json
 //	@Produce		json
-//	@Param			productId	path		string	true	"Product ID"
+//	@Param			productId	query		string	true	"Product ID"
 //	@Success		200			{object}	map[string]any
 //	@Failure		400			{object}	map[string]any
 //	@Failure		500			{object}	map[string]any
-//	@Router			/products/{productId}/images [get]
+//	@Router			/products/images [get]
 func (h *ProductHandler) GetProductImageUrls(w http.ResponseWriter, r *http.Request) {
 	// Get Product id form query params
 	productId := r.URL.Query().Get(productParamKey)
@@ -288,8 +302,9 @@ func (h *ProductHandler) GetProductByID(w http.ResponseWriter, r *http.Request) 
 //	@Tags			Products
 //	@Accept			json
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			productId	path		string			true	"Product ID"
-//	@Param			bid			body		PlaceBidRequest	true	"Bid details"
+//	@Param			bid			body		model.PlaceBidRequest	true	"Bid details"
 //	@Success		200			{object}	map[string]any
 //	@Failure		400			{object}	map[string]any
 //	@Failure		401			{object}	map[string]any
@@ -315,7 +330,17 @@ func (h *ProductHandler) PlaceBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.svc.PlaceBid(r.Context(), productId, claims.UserID, req.BidAmount)
+	// check if last bidder is the current bidder, if yes, return error
+	product, err := h.cache.GetProductMetadata(r.Context(), productId)
+	if err != nil {
+		slog.Error("Failed to get last bidder from redis cache", "product_id", productId, "error", err)
+		// Not returning error to user as this is not critical for placing a bid
+	} else if product["last_bidder"] == claims.UserID.String() {
+		RespondErrorJSON(w, r, http.StatusForbidden, ErrSelfBidding.Error(), "You cannot bid consecutively on the same product", nil)
+		return
+	}
+
+	err = h.svc.PlaceBid(r.Context(), productId, claims.UserID, req.BidAmount)
 	if err != nil {
 		if errors.Is(err, service.ErrSelfBidding) { // Make sure this error is exported in service package
 			RespondErrorJSON(w, r, http.StatusForbidden, ErrSelfBidding.Error(), "You cannot bid on your own product", nil)
@@ -331,6 +356,23 @@ func (h *ProductHandler) PlaceBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Publish the new bid amount to Redis channel for real-time updates
+	err = h.cache.UpdateProductPrice(r.Context(), productId, req.BidAmount)
+	if err != nil {
+		slog.Error("Failed to publish price update to Redis", "product_id", productId, "error", err)
+		// Not returning error to user as the bid placement was successful
+	}
+
+	// Update product metadata in redis with new current price and bidder id
+	metadata := map[string]any{
+		"current_price": req.BidAmount,
+		"last_bidder":   claims.UserID.String(),
+	}
+	if err := h.cache.AddProductMetadata(r.Context(), productId, metadata); err != nil {
+		slog.Error("Failed to update product metadata in redis cache", "product_id", productId, "error", err)
+		// Not returning error to user as the bid placement was successful
+	}
+
 	RespondSuccessJSON(w, r, http.StatusOK, "Bid placed successfully", "")
 }
 
@@ -341,6 +383,7 @@ func (h *ProductHandler) PlaceBid(w http.ResponseWriter, r *http.Request) {
 //	@Tags			Products
 //	@Accept			json
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Param			sellerId	path		string	false	"Seller ID"
 //	@Param			limit		query		int		false	"Number of products to return"
 //	@Param			offset		query		int		false	"Number of products to skip"
@@ -385,4 +428,83 @@ func (h *ProductHandler) ProductsBySellerID(w http.ResponseWriter, r *http.Reque
 		"products": products,
 	}
 	RespondSuccessJSON(w, r, http.StatusOK, "products fetched successfully", resp)
+}
+
+// StreamPriceUpdates godoc
+//
+//	@Summary		Stream Real-Time Price Updates
+//	@Description	Stream real-time price updates for a specific product using Server-Sent Events (SSE)
+//	@Tags			Products
+//	@Produce		text/event-stream
+//	@Security		BearerAuth
+//	@Param			productId	query		string	true	"Product ID"
+//	@Success		200			{string}	string	"Stream of price updates"
+//	@Failure		400			{object}	map[string]any
+//	@Failure		500			{object}	map[string]any
+//	@Router			/products/stream-price [get]
+func (h *ProductHandler) StreamPriceUpdates(w http.ResponseWriter, r *http.Request) {
+	// Get product id from query params
+	productId := r.URL.Query().Get(productParamKey)
+	if productId == "" {
+		RespondErrorJSON(w, r, http.StatusBadRequest, ErrMissingParam.Error(), "Product ID is required", nil)
+		return
+	}
+
+	slog.Info("Client connected to price updates stream", "product_id", productId)
+
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	clientGone := r.Context().Done()
+	rc := http.NewResponseController(w)
+
+	// Use context.Background() for Redis subscription to prevent premature cancellation
+	redisCtx := context.Background()
+
+	// Subscribe to Redis channel for price updates
+	sub := h.cache.ProductPriceUpdates(redisCtx, productId)
+	defer sub.Close()
+
+	if _, err := sub.Receive(redisCtx); err != nil {
+		slog.Error("Failed to subscribe to Redis channel", "product_id", productId, "error", err)
+		RespondErrorJSON(w, r, http.StatusInternalServerError, ErrInternalServer.Error(), "Failed to subscribe to price updates", nil)
+		return
+	}
+
+	// Send initial connection confirmation
+	if _, err := fmt.Fprintf(w, "data: {\"status\":\"connected\",\"product_id\":\"%s\"}\n\n", productId); err != nil {
+		slog.Error("Failed to send initial connection message", "product_id", productId, "error", err)
+		return
+	}
+	if err := rc.Flush(); err != nil {
+		slog.Error("Failed to flush initial message", "product_id", productId, "error", err)
+		return
+	}
+
+	// Listen for messages
+	for {
+		select {
+		case <-clientGone:
+			slog.Info("Client disconnected from price updates stream", "product_id", productId)
+			return
+		case msg, ok := <-sub.Channel():
+			if !ok {
+				slog.Error("Redis channel closed unexpectedly", "product_id", productId)
+				return
+			}
+
+			// Write the message in SSE format
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", msg.Payload); err != nil {
+				slog.Error("Error writing to response", "product_id", productId, "error", err)
+				return
+			}
+
+			if err := rc.Flush(); err != nil {
+				slog.Error("Error flushing response", "product_id", productId, "error", err)
+				return
+			}
+		}
+	}
 }

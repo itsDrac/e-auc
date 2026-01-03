@@ -46,7 +46,8 @@ func New() *Server {
 		Addr:         serverAddr,
 		Handler:      mux,
 		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: 5 * time.Minute, // Increased for SSE long-polling connections
+		IdleTimeout:  120 * time.Second,
 	}
 	return serv
 }

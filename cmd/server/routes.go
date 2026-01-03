@@ -19,9 +19,7 @@ func (s *Server) routes() *chi.Mux {
 	mux.Use(chiMiddleware.Recoverer)
 
 	// swagger documentation
-	mux.Get("/swagger/*", httpSwagger.Handler(
-		httpSwagger.URL("http://localhost:8000/swagger/doc.json"), // The url pointing to API definition
-	))
+	mux.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	// api v1 routes
 	mux.Route("/api/v1", func(r chi.Router) {
@@ -59,28 +57,30 @@ func (s *Server) UserRoutes(router chi.Router) {
 // ProductRoutes registers product endpoints (protected)
 func (s *Server) ProductRoutes(router chi.Router) {
 	var productHandler = s.Dependencies.ProductHandler
-		// Not protected routes
-		router.Route("/products", func(r chi.Router) {
-			r.Get("/images", productHandler.GetProductImageUrls)
-			r.Get("/{productId}", productHandler.GetProductByID)
-			r.Group(func(r chi.Router) {
-				r.Use(middleware.AuthMiddleware(s.Dependencies.Services.AuthService))
-				r.Post("/upload-images", productHandler.UploadImages)
-				r.Post("/", productHandler.CreateProduct)
-				r.Patch("/{productId}/bid", productHandler.PlaceBid)
-				r.Get("/seller/{sellerId}", productHandler.ProductsBySellerID)
-			})
+	// Not protected routes
+	router.Route("/products", func(r chi.Router) {
+		r.Get("/images", productHandler.GetProductImageUrls)
+		r.Get("/{productId}", productHandler.GetProductByID)
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.AuthMiddleware(s.Dependencies.Services.AuthService))
+			r.Post("/upload-images", productHandler.UploadImages)
+			r.Post("/", productHandler.CreateProduct)
+			r.Patch("/{productId}/bid", productHandler.PlaceBid)
+			r.Get("/seller/{sellerId}", productHandler.ProductsBySellerID)
+			r.Get("/stream-price", productHandler.StreamPriceUpdates)
 		})
+	})
 }
 
 // Healthcheck godoc
-// @Summary      Health Check
-// @Description  Check if the server is running
-// @Tags         Health
-// @Accept       json
-// @Produce      json
-// @Success      200  {object}  map[string]interface{}
-// @Router       /api/v1/health [get]
+//
+//	@Summary		Health Check
+//	@Description	Check if the server is running
+//	@Tags			Health
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	map[string]interface{}
+//	@Router			/health [get]
 func healthCheck(w http.ResponseWriter, r *http.Request) {
 
 	resp := map[string]any{

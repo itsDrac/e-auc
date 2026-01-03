@@ -15,33 +15,9 @@
         },
         "version": "0.0.1"
     },
-    "host": "localhost:8080",
+    "host": "localhost:8000",
     "basePath": "/api/v1",
     "paths": {
-        "/api/v1/health": {
-            "get": {
-                "description": "Check if the server is running",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Health"
-                ],
-                "summary": "Health Check",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
         "/auth/login": {
             "post": {
                 "description": "Login a user with username and password",
@@ -62,7 +38,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/server.LoginUserRequest"
+                            "$ref": "#/definitions/model.LoginUserRequest"
                         }
                     }
                 ],
@@ -173,7 +149,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/server.CreateUserRequest"
+                            "$ref": "#/definitions/model.CreateUserRequest"
                         }
                     }
                 ],
@@ -202,8 +178,37 @@
                 }
             }
         },
+        "/health": {
+            "get": {
+                "description": "Check if the server is running",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Health Check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/products": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a new product listing",
                 "consumes": [
                     "application/json"
@@ -222,7 +227,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/server.CreateProductRequest"
+                            "$ref": "#/definitions/model.CreateProductRequest"
                         }
                     }
                 ],
@@ -251,8 +256,108 @@
                 }
             }
         },
+        "/products/images": {
+            "get": {
+                "description": "Retrieve image URLs for a specific product by the given product ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Get Product Image URLs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Product ID",
+                        "name": "productId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/products/stream-price": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Stream real-time price updates for a specific product using Server-Sent Events (SSE)",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Stream Real-Time Price Updates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Product ID",
+                        "name": "productId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Stream of price updates",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/products/upload-images": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Upload images for a product",
                 "consumes": [
                     "multipart/form-data"
@@ -347,6 +452,11 @@
         },
         "/products/{productId}/bid": {
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Place a bid(update current price) on a specific product by the given product ID",
                 "consumes": [
                     "application/json"
@@ -372,7 +482,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/server.PlaceBidRequest"
+                            "$ref": "#/definitions/model.PlaceBidRequest"
                         }
                     }
                 ],
@@ -408,55 +518,13 @@
                 }
             }
         },
-        "/products/{productId}/images": {
-            "get": {
-                "description": "Retrieve image URLs for a specific product by the given product ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Products"
-                ],
-                "summary": "Get Product Image URLs",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Product ID",
-                        "name": "productId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
         "/products/{sellerId}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieve products listed by a specific seller. If no seller ID is provided, retrieves products for the current user.",
                 "consumes": [
                     "application/json"
@@ -522,6 +590,11 @@
         },
         "/users/me": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieve the profile information of the authenticated user",
                 "produces": [
                     "application/json"
@@ -550,7 +623,7 @@
         }
     },
     "definitions": {
-        "server.CreateProductRequest": {
+        "model.CreateProductRequest": {
             "type": "object",
             "required": [
                 "current_price",
@@ -585,7 +658,7 @@
                 }
             }
         },
-        "server.CreateUserRequest": {
+        "model.CreateUserRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -605,7 +678,7 @@
                 }
             }
         },
-        "server.LoginUserRequest": {
+        "model.LoginUserRequest": {
             "type": "object",
             "required": [
                 "password",
@@ -621,7 +694,7 @@
                 }
             }
         },
-        "server.PlaceBidRequest": {
+        "model.PlaceBidRequest": {
             "type": "object",
             "required": [
                 "bid_amount"
@@ -631,6 +704,14 @@
                     "type": "integer"
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Type \"Bearer\" followed by a space and JWT token.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }

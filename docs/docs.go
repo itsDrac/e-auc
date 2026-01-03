@@ -24,30 +24,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/v1/health": {
-            "get": {
-                "description": "Check if the server is running",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Health"
-                ],
-                "summary": "Health Check",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
         "/auth/login": {
             "post": {
                 "description": "Login a user with username and password",
@@ -68,7 +44,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/server.LoginUserRequest"
+                            "$ref": "#/definitions/model.LoginUserRequest"
                         }
                     }
                 ],
@@ -179,7 +155,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/server.CreateUserRequest"
+                            "$ref": "#/definitions/model.CreateUserRequest"
                         }
                     }
                 ],
@@ -208,8 +184,37 @@ const docTemplate = `{
                 }
             }
         },
+        "/health": {
+            "get": {
+                "description": "Check if the server is running",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Health Check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/products": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a new product listing",
                 "consumes": [
                     "application/json"
@@ -228,7 +233,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/server.CreateProductRequest"
+                            "$ref": "#/definitions/model.CreateProductRequest"
                         }
                     }
                 ],
@@ -257,8 +262,108 @@ const docTemplate = `{
                 }
             }
         },
+        "/products/images": {
+            "get": {
+                "description": "Retrieve image URLs for a specific product by the given product ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Get Product Image URLs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Product ID",
+                        "name": "productId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/products/stream-price": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Stream real-time price updates for a specific product using Server-Sent Events (SSE)",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Stream Real-Time Price Updates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Product ID",
+                        "name": "productId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Stream of price updates",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/products/upload-images": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Upload images for a product",
                 "consumes": [
                     "multipart/form-data"
@@ -353,6 +458,11 @@ const docTemplate = `{
         },
         "/products/{productId}/bid": {
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Place a bid(update current price) on a specific product by the given product ID",
                 "consumes": [
                     "application/json"
@@ -378,7 +488,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/server.PlaceBidRequest"
+                            "$ref": "#/definitions/model.PlaceBidRequest"
                         }
                     }
                 ],
@@ -414,55 +524,13 @@ const docTemplate = `{
                 }
             }
         },
-        "/products/{productId}/images": {
-            "get": {
-                "description": "Retrieve image URLs for a specific product by the given product ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Products"
-                ],
-                "summary": "Get Product Image URLs",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Product ID",
-                        "name": "productId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
         "/products/{sellerId}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieve products listed by a specific seller. If no seller ID is provided, retrieves products for the current user.",
                 "consumes": [
                     "application/json"
@@ -528,6 +596,11 @@ const docTemplate = `{
         },
         "/users/me": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieve the profile information of the authenticated user",
                 "produces": [
                     "application/json"
@@ -556,7 +629,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "server.CreateProductRequest": {
+        "model.CreateProductRequest": {
             "type": "object",
             "required": [
                 "current_price",
@@ -591,7 +664,7 @@ const docTemplate = `{
                 }
             }
         },
-        "server.CreateUserRequest": {
+        "model.CreateUserRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -611,7 +684,7 @@ const docTemplate = `{
                 }
             }
         },
-        "server.LoginUserRequest": {
+        "model.LoginUserRequest": {
             "type": "object",
             "required": [
                 "password",
@@ -627,7 +700,7 @@ const docTemplate = `{
                 }
             }
         },
-        "server.PlaceBidRequest": {
+        "model.PlaceBidRequest": {
             "type": "object",
             "required": [
                 "bid_amount"
@@ -638,13 +711,21 @@ const docTemplate = `{
                 }
             }
         }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Type \"Bearer\" followed by a space and JWT token.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "0.0.1",
-	Host:             "localhost:8080",
+	Host:             "localhost:8000",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
 	Title:            "E-Auction API",
