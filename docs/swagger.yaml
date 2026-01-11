@@ -1,6 +1,6 @@
 basePath: /api/v1
 definitions:
-  server.CreateProductRequest:
+  model.CreateProductRequest:
     properties:
       current_price:
         minimum: 0
@@ -26,7 +26,7 @@ definitions:
     - min_price
     - title
     type: object
-  server.CreateUserRequest:
+  model.CreateUserRequest:
     properties:
       email:
         type: string
@@ -40,7 +40,7 @@ definitions:
     - password
     - username
     type: object
-  server.LoginUserRequest:
+  model.LoginUserRequest:
     properties:
       password:
         minLength: 8
@@ -51,14 +51,14 @@ definitions:
     - password
     - username
     type: object
-  server.PlaceBidRequest:
+  model.PlaceBidRequest:
     properties:
       bid_amount:
         type: integer
     required:
     - bid_amount
     type: object
-host: localhost:8080
+host: localhost:8000
 info:
   contact:
     email: support.query@e-auc.fun
@@ -72,22 +72,6 @@ info:
   title: E-Auction API
   version: 0.0.1
 paths:
-  /api/v1/health:
-    get:
-      consumes:
-      - application/json
-      description: Check if the server is running
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Health Check
-      tags:
-      - Health
   /auth/login:
     post:
       consumes:
@@ -99,7 +83,7 @@ paths:
         name: credentials
         required: true
         schema:
-          $ref: '#/definitions/server.LoginUserRequest'
+          $ref: '#/definitions/model.LoginUserRequest'
       produces:
       - application/json
       responses:
@@ -175,7 +159,7 @@ paths:
         name: user
         required: true
         schema:
-          $ref: '#/definitions/server.CreateUserRequest'
+          $ref: '#/definitions/model.CreateUserRequest'
       produces:
       - application/json
       responses:
@@ -197,6 +181,22 @@ paths:
       summary: Register a new User
       tags:
       - Auth
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Check if the server is running
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Health Check
+      tags:
+      - Health
   /products:
     post:
       consumes:
@@ -208,7 +208,7 @@ paths:
         name: product
         required: true
         schema:
-          $ref: '#/definitions/server.CreateProductRequest'
+          $ref: '#/definitions/model.CreateProductRequest'
       produces:
       - application/json
       responses:
@@ -227,6 +227,8 @@ paths:
           schema:
             additionalProperties: true
             type: object
+      security:
+      - BearerAuth: []
       summary: Create a new Product
       tags:
       - Products
@@ -279,7 +281,7 @@ paths:
         name: bid
         required: true
         schema:
-          $ref: '#/definitions/server.PlaceBidRequest'
+          $ref: '#/definitions/model.PlaceBidRequest'
       produces:
       - application/json
       responses:
@@ -303,40 +305,9 @@ paths:
           schema:
             additionalProperties: true
             type: object
+      security:
+      - BearerAuth: []
       summary: Place a Bid on a Product
-      tags:
-      - Products
-  /products/{productId}/images:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve image URLs for a specific product by the given product
-        ID
-      parameters:
-      - description: Product ID
-        in: path
-        name: productId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Get Product Image URLs
       tags:
       - Products
   /products/{sellerId}:
@@ -381,7 +352,74 @@ paths:
           schema:
             additionalProperties: true
             type: object
+      security:
+      - BearerAuth: []
       summary: Get Products by Seller ID
+      tags:
+      - Products
+  /products/images:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve image URLs for a specific product by the given product
+        ID
+      parameters:
+      - description: Product ID
+        in: query
+        name: productId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Product Image URLs
+      tags:
+      - Products
+  /products/stream-price:
+    get:
+      description: Stream real-time price updates for a specific product using Server-Sent
+        Events (SSE)
+      parameters:
+      - description: Product ID
+        in: query
+        name: productId
+        required: true
+        type: string
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: Stream of price updates
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Stream Real-Time Price Updates
       tags:
       - Products
   /products/upload-images:
@@ -413,6 +451,8 @@ paths:
           schema:
             additionalProperties: true
             type: object
+      security:
+      - BearerAuth: []
       summary: Upload Product Images
       tags:
       - Products
@@ -432,7 +472,15 @@ paths:
           schema:
             additionalProperties: true
             type: object
+      security:
+      - BearerAuth: []
       summary: Get User Profile
       tags:
       - Users
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

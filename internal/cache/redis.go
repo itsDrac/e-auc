@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/itsDrac/e-auc/pkg/utils"
@@ -15,6 +16,8 @@ var (
 
 const (
 	TempImageListKey = "temp_image_names"
+	ProductPriceKey  = "product_price_%s"
+	ProductDataKey   = "product_%s"
 )
 
 type Cacher interface {
@@ -25,6 +28,10 @@ type Cacher interface {
 	Close() error
 	AddImageNameToTempList(ctx context.Context, imageName string) error
 	RemoveImageNameFromTempList(ctx context.Context, imageName string) error
+	ProductPriceUpdates(ctx context.Context, productId string) *redis.PubSub
+	UpdateProductPrice(ctx context.Context, productId string, newPrice int32) error
+	AddProductMetadata(ctx context.Context, productId string, metadata map[string]any) error
+	GetProductMetadata(ctx context.Context, productId string) (map[string]string, error)
 }
 
 type RedisCache struct {
@@ -102,4 +109,32 @@ func (r *RedisCache) AddImageNameToTempList(ctx context.Context, imageName strin
 
 func (r *RedisCache) RemoveImageNameFromTempList(ctx context.Context, imageName string) error {
 	return r.client.LRem(ctx, TempImageListKey, 0, imageName).Err()
+}
+
+func (r *RedisCache) ProductPriceUpdates(ctx context.Context, productId string) *redis.PubSub {
+	channelName := fmt.Sprintf(ProductPriceKey, productId)
+	return r.client.Subscribe(ctx, channelName)
+}
+
+func (r *RedisCache) UpdateProductPrice(ctx context.Context, productId string, newPrice int32) error {
+	channelName := fmt.Sprintf(ProductPriceKey, productId)
+	return r.client.Publish(ctx, channelName, newPrice).Err()
+}
+func (r *RedisCache) AddProductMetadata(ctx context.Context, productId string, metadata map[string]any) error {
+	key := fmt.Sprintf(ProductDataKey, productId)
+	// HSet will create the hash if it doesn't exist
+	// If it exists, it will update existing fields and add new fields
+	return r.client.HSet(ctx, key, metadata).Err()
+}
+
+func (r *RedisCache) GetProductMetadata(ctx context.Context, productId string) (map[string]string, error) {
+	key := fmt.Sprintf(ProductDataKey, productId)
+	result, err := r.client.HGetAll(ctx, key).Result()
+	if err != nil {
+		return nil, err
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("no metadata found for product ID %s", productId)
+	}
+	return result, nil
 }
